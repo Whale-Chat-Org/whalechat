@@ -1,0 +1,82 @@
+# Local development dependencies for the auth module.
+#
+# Neither holds durable state that matters: Postgres is rebuilt by
+# `npm run db:migrate` and re-claimed at /onboarding; Redis is a cache in front of it.
+# Mail is not here — it goes out through Resend's API (see lib/email.ts).
+#
+# The credentials are deliberately weak and deliberately committed. They are
+# reachable only from localhost and grant access to nothing but this dev database.
+name: whalechat
+
+services:
+  postgres:
+    image: postgres:17-alpine
+    container_name: whalechat-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: whalechat
+      POSTGRES_PASSWORD: whalechat_local_dev
+      POSTGRES_DB: whalechat
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+    healthcheck:
+      # `pg_isready` alone returns true before the DB accepts connections during
+      # first-run initdb, which makes `db:migrate` flaky in a fresh clone.
+      test: ["CMD-SHELL", "pg_isready -U whalechat -d whalechat"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+      start_period: 10s
+
+  redis:
+    image: redis:7-alpine
+    container_name: whalechat-redis
+    restart: unless-stopped
+    # No persistence: Better Auth's secondary storage holds sessions, verification
+    # records and rate-limit counters. A flush signs everyone out — annoying, never
+    # incorrect — so don't let it look durable.
+    command: ["redis-server", "--save", "", "--appendonly", "no"]
+    ports:
+      - "6379:6379"
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  # Production image, off by default — `docker compose --profile prod up --build`.
+  # Day-to-day development runs `npm run dev` on the host instead, which Next's own
+  # docs recommend over containerised dev on macOS.
+  app:
+    profiles: ["prod"]
+    build:
+      context: .
+      args:
+        NEXT_PUBLIC_APP_URL: http://localhost:3000
+    container_name: whalechat-app
+    restart: unless-stopped
+    ports:
+      - "3000:3000"
+    # Secrets come from the same file the host dev server reads.
+    env_file:
+      - path: .env.local
+        required: false
+    # …but the connection targets below win, because inside the compose network
+    # the stores answer to their service names, not localhost.
+    environment:
+      # Service names, not localhost — this one runs inside the compose network.
+      DATABASE_URL: postgres://whalechat:whalechat_local_dev@postgres:5432/whalechat
+      REDIS_URL: redis://redis:6379
+      NEXT_PUBLIC_APP_URL: http://localhost:3000
+      # RESEND_API_KEY and EMAIL_FROM come from .env.local above — mail leaves
+      # over HTTPS, so there is nothing to reach inside this network.
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+
+volumes:
+  postgres-data:

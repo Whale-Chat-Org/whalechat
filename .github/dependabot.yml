@@ -1,0 +1,40 @@
+# Keeps the pipeline current on its own.
+#
+# The workflows pin actions to a major (`@v7`), which already picks up patches
+# and security fixes automatically. What a major pin cannot do is notice that
+# `v8` exists — that is what this file is for. Same for the Docker base image
+# and the npm tree.
+version: 2
+
+updates:
+  - package-ecosystem: github-actions
+    directory: "/"
+    schedule:
+      interval: weekly
+    commit-message:
+      prefix: ci
+    labels: [dependencies, ci]
+
+  - package-ecosystem: docker
+    directory: "/"
+    schedule:
+      interval: weekly
+    commit-message:
+      prefix: build
+    labels: [dependencies, docker]
+
+  - package-ecosystem: npm
+    directory: "/"
+    schedule:
+      interval: weekly
+    open-pull-requests-limit: 10
+    commit-message:
+      prefix: deps
+      prefix-development: deps-dev
+    labels: [dependencies]
+    groups:
+      # One PR per ecosystem rather than thirty. Patch and minor bumps are
+      # reviewed together; majors still arrive individually because they are the
+      # ones that break things.
+      minor-and-patch:
+        update-types: [minor, patch]

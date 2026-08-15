@@ -1,0 +1,278 @@
+@import "tailwindcss";
+@import "tw-animate-css";
+@import "katex/dist/katex.min.css";
+
+/* The app is dark-only (<html class="dark">) — :root below holds the dark
+   palette. The variant stays defined so dark: utilities still resolve. */
+@custom-variant dark (&:where(.dark, .dark *));
+
+/* Tailwind 4 is CSS-first: this maps the custom properties below onto utility
+   names (bg-background, text-foreground, border-border, bg-sidebar, …).
+   A token missing from here resolves to nothing — the build stays green and the
+   page renders unstyled, so keep this in sync with :root. */
+@theme inline {
+  --color-background: hsl(var(--background));
+  --color-foreground: hsl(var(--foreground));
+  --color-card: hsl(var(--card));
+  --color-card-foreground: hsl(var(--card-foreground));
+  --color-popover: hsl(var(--popover));
+  --color-popover-foreground: hsl(var(--popover-foreground));
+  --color-primary: hsl(var(--primary));
+  --color-primary-foreground: hsl(var(--primary-foreground));
+  --color-secondary: hsl(var(--secondary));
+  --color-secondary-foreground: hsl(var(--secondary-foreground));
+  --color-muted: hsl(var(--muted));
+  --color-muted-foreground: hsl(var(--muted-foreground));
+  --color-accent: hsl(var(--accent));
+  --color-accent-foreground: hsl(var(--accent-foreground));
+  --color-destructive: hsl(var(--destructive));
+  --color-destructive-foreground: hsl(var(--destructive-foreground));
+  --color-border: hsl(var(--border));
+  --color-input: hsl(var(--input));
+  --color-ring: hsl(var(--ring));
+
+  --color-sidebar: hsl(var(--sidebar));
+  --color-sidebar-foreground: hsl(var(--sidebar-foreground));
+  --color-sidebar-primary: hsl(var(--sidebar-primary));
+  --color-sidebar-primary-foreground: hsl(var(--sidebar-primary-foreground));
+  --color-sidebar-accent: hsl(var(--sidebar-accent));
+  --color-sidebar-accent-foreground: hsl(var(--sidebar-accent-foreground));
+  --color-sidebar-border: hsl(var(--sidebar-border));
+  --color-sidebar-ring: hsl(var(--sidebar-ring));
+
+  --radius-lg: var(--radius);
+  --radius-md: calc(var(--radius) - 2px);
+  --radius-sm: calc(var(--radius) - 4px);
+
+  --breakpoint-xs: 475px;
+}
+
+@layer base {
+  :root {
+    --background: 222.2 84% 4.9%;
+    --foreground: 210 40% 98%;
+    --card: 222.2 84% 4.9%;
+    --card-foreground: 210 40% 98%;
+    --popover: 222.2 60% 7%;
+    --popover-foreground: 210 40% 98%;
+    --primary: 188 95% 50%;
+    --primary-foreground: 222.2 47.4% 11.2%;
+    --secondary: 217.2 32.6% 17.5%;
+    --secondary-foreground: 210 40% 98%;
+    --muted: 217.2 32.6% 17.5%;
+    --muted-foreground: 215 20.2% 65.1%;
+    --accent: 217.2 32.6% 17.5%;
+    --accent-foreground: 210 40% 98%;
+    /* Softer than stock red: the bright variant reads as an alarm against this
+       dark ground, while shadcn's very dark default is unreadable as text. */
+    --destructive: 0 62% 47%;
+    --destructive-foreground: 210 40% 98%;
+    --border: 217.2 32.6% 17.5%;
+    --input: 217.2 32.6% 17.5%;
+    --ring: 188 95% 50%;
+    --radius: 0.625rem;
+
+    /* Sidebar sits a touch above the page background so the seam reads without
+       needing a hard border. */
+    --sidebar: 222.2 55% 7.5%;
+    --sidebar-foreground: 210 40% 98%;
+    --sidebar-primary: 188 95% 50%;
+    --sidebar-primary-foreground: 222.2 47.4% 11.2%;
+    --sidebar-accent: 217.2 32.6% 17.5%;
+    --sidebar-accent-foreground: 210 40% 98%;
+    --sidebar-border: 217.2 32.6% 14%;
+    --sidebar-ring: 188 95% 50%;
+  }
+
+  * {
+    @apply border-border;
+  }
+
+  html {
+    scroll-behavior: smooth;
+    scroll-padding-top: 4rem;
+  }
+
+  body {
+    @apply bg-background text-foreground antialiased;
+  }
+
+  /* Consistent focus treatment across the app. */
+  :focus-visible {
+    @apply outline-none ring-2 ring-ring ring-offset-2 ring-offset-background;
+  }
+
+  /* Actually honor reduced motion — the previous rules only re-asserted smooth
+     scrolling, so the preference was never respected. */
+  @media (prefers-reduced-motion: reduce) {
+    html {
+      scroll-behavior: auto;
+    }
+
+    *,
+    *::before,
+    *::after {
+      animation-duration: 0.01ms !important;
+      animation-iteration-count: 1 !important;
+      transition-duration: 0.01ms !important;
+    }
+  }
+}
+
+@layer utilities {
+  .scrollbar-thin {
+    scrollbar-width: thin;
+    scrollbar-color: hsl(var(--muted-foreground) / 0.35) transparent;
+  }
+
+  .scrollbar-thin::-webkit-scrollbar {
+    width: 8px;
+    height: 8px;
+  }
+
+  .scrollbar-thin::-webkit-scrollbar-track {
+    background: transparent;
+  }
+
+  .scrollbar-thin::-webkit-scrollbar-thumb {
+    @apply rounded-full bg-muted-foreground/30;
+  }
+
+  .scrollbar-thin::-webkit-scrollbar-thumb:hover {
+    @apply bg-muted-foreground/50;
+  }
+}
+
+/* ---------------------------------------------------------------------------
+   Markdown
+   MarkdownRenderer.tsx styles most elements with inline Tailwind. What lives
+   here is only what those classes cannot express: wrapping behaviour, the
+   sticky table header, and scrollbars.
+   --------------------------------------------------------------------------- */
+
+.katex-display {
+  @apply my-4 overflow-x-auto overflow-y-hidden;
+}
+
+.katex {
+  @apply text-base;
+}
+
+.markdown-content {
+  @apply break-words;
+  width: 100%;
+  max-width: 100%;
+  overflow-wrap: anywhere;
+  line-height: 1.7;
+}
+
+.markdown-content * {
+  max-width: 100%;
+  box-sizing: border-box;
+}
+
+.markdown-content > *:first-child {
+  @apply mt-0;
+}
+
+.markdown-content > *:last-child {
+  @apply mb-0;
+}
+
+.markdown-content p,
+.markdown-content li {
+  overflow-wrap: break-word;
+  word-break: break-word;
+}
+
+.markdown-content a {
+  word-break: break-word;
+  overflow-wrap: anywhere;
+}
+
+/* h5/h6 are the only headings MarkdownRenderer does not override. */
+.markdown-content h5,
+.markdown-content h6 {
+  @apply text-base font-semibold mt-3 mb-2;
+}
+
+.markdown-content pre {
+  max-width: 100%;
+  width: 100%;
+  @apply overflow-x-auto;
+}
+
+.markdown-content pre code {
+  white-space: pre;
+  word-break: normal;
+  overflow-wrap: normal;
+  display: block;
+  @apply bg-transparent p-0 leading-relaxed;
+}
+
+/* The table itself does not scroll — MarkdownRenderer wraps it in an
+   overflow-x-auto container. max-content keeps wide tables from squashing. */
+.markdown-content table {
+  width: 100%;
+  min-width: max-content;
+  @apply border-collapse;
+}
+
+.markdown-content thead {
+  position: sticky;
+  top: 0;
+  z-index: 10;
+}
+
+.markdown-content img,
+.markdown-content video,
+.markdown-content iframe,
+.markdown-content svg {
+  max-width: 100%;
+  height: auto;
+}
+
+.markdown-content > div {
+  max-width: 100%;
+  overflow: hidden;
+}
+
+/* Keeps CodeBlock's wrapper (MarkdownRenderer.tsx) at full width. */
+.markdown-content .code-block {
+  max-width: 100%;
+  width: 100%;
+}
+
+/* Scrollbars for the markdown scroll containers only — not a global selector. */
+.markdown-content pre::-webkit-scrollbar,
+.markdown-content .table-scroll::-webkit-scrollbar {
+  height: 8px;
+  width: 8px;
+}
+
+.markdown-content pre::-webkit-scrollbar-track,
+.markdown-content .table-scroll::-webkit-scrollbar-track {
+  @apply bg-muted/30 rounded-full;
+}
+
+.markdown-content pre::-webkit-scrollbar-thumb,
+.markdown-content .table-scroll::-webkit-scrollbar-thumb {
+  @apply rounded-full bg-muted-foreground/40 hover:bg-muted-foreground/60;
+}
+
+html,
+body {
+  overflow-x: hidden;
+  max-width: 100vw;
+}
+
+@media (max-width: 640px) {
+  .markdown-content {
+    @apply text-sm;
+  }
+
+  .markdown-content pre,
+  .markdown-content code:not(pre code) {
+    @apply text-xs;
+  }
+}

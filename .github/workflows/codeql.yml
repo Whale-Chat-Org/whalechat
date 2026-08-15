@@ -1,0 +1,51 @@
+# Static analysis, kept in its own workflow so it can never block a deploy.
+#
+# ⚠️ This will FAIL on a private repository until GitHub Code Security is
+# enabled for it. Code scanning on private repos is part of GitHub Advanced
+# Security (paid Team/Enterprise); on a public repo it is free and works as-is.
+# It lives here rather than inside ci-cd.yml precisely so that licensing failure
+# stays contained — the pipeline should not stop shipping because a scanner the
+# account is not entitled to cannot run.
+#
+# Nothing else to configure: `security-events: write` plus the default query
+# suite is the whole setup.
+name: CodeQL
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  schedule:
+    # Weekly, so newly published queries reach existing code without waiting for
+    # someone to push.
+    - cron: "27 4 * * 1"
+
+permissions:
+  contents: read
+
+jobs:
+  analyze:
+    name: Analyze
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      security-events: write
+      actions: read
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Initialize CodeQL
+        uses: github/codeql-action/init@v4
+        with:
+          languages: javascript-typescript
+          # security-and-quality adds maintainability queries on top of the
+          # security ones. Drop to `security-extended` if the noise outweighs it.
+          queries: security-and-quality
+
+      # No build step: CodeQL analyses JavaScript and TypeScript straight from
+      # source, so `next build` would only cost time.
+      - name: Perform CodeQL analysis
+        uses: github/codeql-action/analyze@v4
+        with:
+          category: "/language:javascript-typescript"

@@ -1,0 +1,282 @@
+# test → scan → build → push to ACR → approval → deploy to App Service.
+#
+# Azure identifiers are placeholders. Fill these in under
+# Settings → Secrets and variables → Actions before the build job can succeed:
+#
+#   Variables  AZURE_CLIENT_ID, AZURE_TENANT_ID, AZURE_SUBSCRIPTION_ID,
+#              ACR_LOGIN_SERVER, ACR_REPOSITORY, AZURE_WEBAPP_NAME,
+#              AZURE_RESOURCE_GROUP, NEXT_PUBLIC_APP_URL
+#   Secrets    DATABASE_URL
+#
+# The approval gate is NOT in this file. It comes from a `production`
+# environment with required reviewers, created under Settings → Environments.
+# Without that, the deploy job runs straight through unreviewed.
+name: CI/CD
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+# Least privilege by default; jobs that need more ask for it themselves.
+permissions:
+  contents: read
+
+# A newer push to the same branch makes an in-flight run pointless. Deploys are
+# excluded from cancellation further down by virtue of running last.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  # Matches `FROM node:24-alpine` in the Dockerfile. There is no `engines` field
+  # or .nvmrc, so the Dockerfile is the only version signal in the repo.
+  NODE_VERSION: "24"
+
+jobs:
+  test:
+    name: Test
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-node@v7
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+
+      # `postinstall` runs `prisma generate`. That is not optional here:
+      # `generated/` is gitignored, so `@/generated/prisma/client` does not
+      # resolve until it has run, and lint/typecheck/test all import it.
+      - name: Install dependencies
+        run: npm ci
+
+      # Writes next-env.d.ts, which is gitignored but listed in tsconfig's
+      # `include`. Next's own docs recommend this over a full build when all you
+      # want in CI is a type check.
+      - name: Generate route types
+        run: npx next typegen
+
+      - name: Lint
+        run: npm run lint
+
+      - name: Typecheck
+        run: npx tsc --noEmit
+
+      - name: Unit tests
+        run: npm test
+
+  scan:
+    name: Scan
+    runs-on: ubuntu-latest
+    needs: test
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          # Gitleaks scans history, not just the working tree, so it needs all
+          # of it — a secret that was committed and later removed is still a
+          # leaked secret.
+          fetch-depth: 0
+
+      - uses: actions/setup-node@v7
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+
+      # Reads package-lock.json and queries the registry; no install needed.
+      #
+      # `high` rather than `moderate` is a considered threshold, not laziness.
+      # The tree currently carries exactly one advisory: a moderate in
+      # @better-auth/oauth-provider, which npm installs because
+      # @better-auth-ui/react declares it as a non-optional peer. That plugin is
+      # not enabled in lib/auth.ts, so the affected code never runs. Revisit if
+      # the OAuth provider is ever switched on.
+      - name: Audit dependencies
+        run: npm audit --audit-level=high
+
+      # The gitleaks CLI, not gitleaks-action. The Action requires a paid
+      # GITLEAKS_LICENSE for organisation-owned repositories; the CLI is MIT and
+      # free everywhere, so this keeps working if the repo ever moves to an org.
+      #
+      # Findings fail the job directly. Uploading SARIF to the Security tab would
+      # need GitHub Code Security, which private repositories do not get.
+      #
+      # ghcr.io/gitleaks/gitleaks is the current official image; the older
+      # zricethezav/gitleaks on Docker Hub still works but is not where releases
+      # are published now. Pinned rather than :latest so a rules change cannot
+      # turn a green pipeline red without a commit — bump it deliberately to pick
+      # up new detections.
+      - name: Scan for committed secrets
+        run: |
+          docker run --rm -v "$PWD:/repo" ghcr.io/gitleaks/gitleaks:v8.30.1 \
+            git /repo --redact --verbose
+
+  build:
+    name: Build and scan image
+    runs-on: ubuntu-latest
+    needs: scan
+    # No Azure guard: building the image and scanning it is the point of CI, and
+    # neither needs an account. This runs on pull requests too — a broken
+    # Dockerfile or a fresh CVE is worth catching before merge, not after.
+    #
+    # Only the push steps at the end are gated, so an unconfigured repo gets a
+    # fully green pipeline that stops just short of the registry.
+    permissions:
+      contents: read
+      id-token: write # required for OIDC federated credentials, push steps only
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: docker/setup-buildx-action@v4
+
+      # Tagged locally, not with the registry prefix. The ACR name may not exist
+      # yet, and `//:sha` is not a valid reference — the registry tag is applied
+      # later, only if there is somewhere to push it.
+      #
+      # NEXT_PUBLIC_APP_URL is inlined into the client bundle at build time, so
+      # the resulting image is tied to one origin and cannot be promoted to a
+      # different environment — a staging deploy needs its own build. The
+      # fallback keeps the build working before that variable is set; an image
+      # built that way is for scanning, not for shipping.
+      - name: Build image
+        uses: docker/build-push-action@v7
+        with:
+          context: .
+          load: true
+          push: false
+          tags: whalechat:${{ github.sha }}
+          build-args: |
+            NEXT_PUBLIC_APP_URL=${{ vars.NEXT_PUBLIC_APP_URL || 'http://localhost:3000' }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      # `ignore-unfixed` on purpose: without it an unpatched CVE in the
+      # node:24-alpine base blocks every deploy with nothing actionable to do
+      # about it. Fixable HIGH/CRITICAL findings still fail the job — and because
+      # this runs before the push steps, a failure here means nothing reaches ACR.
+      - name: Scan image for vulnerabilities
+        # Note the `v`. This action tags releases `v0.36.0`, not `0.36.0` — the
+        # bare form does not resolve and fails the job before Trivy ever runs.
+        uses: aquasecurity/trivy-action@v0.36.0
+        with:
+          image-ref: whalechat:${{ github.sha }}
+          severity: CRITICAL,HIGH
+          ignore-unfixed: true
+          exit-code: "1"
+          format: table
+
+      # --- everything below needs Azure, and skips itself until it exists -----
+
+      # Catches the half-configured case: ACR_LOGIN_SERVER set but its companions
+      # missing, which would otherwise fail deep inside `docker push`.
+      - name: Check Azure configuration
+        if: ${{ vars.ACR_LOGIN_SERVER != '' && github.event_name != 'pull_request' }}
+        run: |
+          missing=""
+          for var in ACR_REPOSITORY NEXT_PUBLIC_APP_URL \
+                     AZURE_CLIENT_ID AZURE_TENANT_ID AZURE_SUBSCRIPTION_ID; do
+            # An explicit `if`, not `[ -z ... ] && missing=...`: the runner shell
+            # is `bash -eo pipefail`, and an AND-list whose test fails is exactly
+            # the shape that trips `set -e` in some contexts.
+            if [ -z "${!var}" ]; then
+              missing="$missing $var"
+            fi
+          done
+          if [ -n "$missing" ]; then
+            echo "::error::ACR_LOGIN_SERVER is set but these are not:$missing"
+            echo "Set them under Settings → Secrets and variables → Actions → Variables."
+            exit 1
+          fi
+        env:
+          ACR_REPOSITORY: ${{ vars.ACR_REPOSITORY }}
+          NEXT_PUBLIC_APP_URL: ${{ vars.NEXT_PUBLIC_APP_URL }}
+          AZURE_CLIENT_ID: ${{ vars.AZURE_CLIENT_ID }}
+          AZURE_TENANT_ID: ${{ vars.AZURE_TENANT_ID }}
+          AZURE_SUBSCRIPTION_ID: ${{ vars.AZURE_SUBSCRIPTION_ID }}
+
+      - name: Sign in to Azure
+        if: ${{ vars.ACR_LOGIN_SERVER != '' && github.event_name != 'pull_request' }}
+        uses: azure/login@v3
+        with:
+          client-id: ${{ vars.AZURE_CLIENT_ID }}
+          tenant-id: ${{ vars.AZURE_TENANT_ID }}
+          subscription-id: ${{ vars.AZURE_SUBSCRIPTION_ID }}
+
+      - name: Sign in to ACR
+        if: ${{ vars.ACR_LOGIN_SERVER != '' && github.event_name != 'pull_request' }}
+        run: az acr login --name "${{ vars.ACR_LOGIN_SERVER }}"
+
+      - name: Push image
+        if: ${{ vars.ACR_LOGIN_SERVER != '' && github.event_name != 'pull_request' }}
+        run: |
+          remote="${{ vars.ACR_LOGIN_SERVER }}/${{ vars.ACR_REPOSITORY }}"
+          docker tag "whalechat:${{ github.sha }}" "$remote:${{ github.sha }}"
+          docker tag "whalechat:${{ github.sha }}" "$remote:latest"
+          docker push "$remote:${{ github.sha }}"
+          docker push "$remote:latest"
+
+      - name: Registry not configured
+        if: ${{ vars.ACR_LOGIN_SERVER == '' }}
+        run: |
+          echo "::notice::Image built and scanned, but not pushed."
+          echo "Set the ACR_LOGIN_SERVER variable to start shipping to Azure."
+
+  deploy:
+    name: Deploy to App Service
+    runs-on: ubuntu-latest
+    needs: build
+    # `build` now runs unconditionally, so this job carries the Azure guard
+    # itself: nothing to deploy until there is a registry to deploy from.
+    if: >-
+      github.event_name != 'pull_request' &&
+      vars.ACR_LOGIN_SERVER != ''
+    # This is what makes GitHub pause for a reviewer — but only once the
+    # environment exists with required reviewers configured. See the header.
+    environment:
+      name: production
+      url: ${{ vars.NEXT_PUBLIC_APP_URL }}
+    permissions:
+      contents: read
+      id-token: write
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-node@v7
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+
+      # Needed for the Prisma CLI and the schema. The image deliberately does not
+      # migrate on boot — two containers starting together would race.
+      - name: Install dependencies
+        run: npm ci
+
+      # Before the new image serves traffic, so the schema is never behind the
+      # code. Requires the runner to reach Postgres: a database behind a private
+      # endpoint needs a firewall rule or a self-hosted runner.
+      - name: Apply database migrations
+        run: npm run db:migrate
+        env:
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+
+      - name: Sign in to Azure
+        uses: azure/login@v3
+        with:
+          client-id: ${{ vars.AZURE_CLIENT_ID }}
+          tenant-id: ${{ vars.AZURE_TENANT_ID }}
+          subscription-id: ${{ vars.AZURE_SUBSCRIPTION_ID }}
+
+      # Runtime configuration lives in App Service, not in the image:
+      # BETTER_AUTH_SECRET, DATABASE_URL, REDIS_URL, DEEPSEEK_API_KEY,
+      # RESEND_API_KEY and EMAIL_FROM must all be set there, or the app boots
+      # with a forgeable session secret and no database.
+      # The commit SHA, not `latest` — the tag `build` pushed for exactly this
+      # commit, so a deploy is always reproducible and a rollback is just an
+      # older SHA.
+      - name: Deploy
+        uses: azure/webapps-deploy@v3
+        with:
+          app-name: ${{ vars.AZURE_WEBAPP_NAME }}
+          images: ${{ vars.ACR_LOGIN_SERVER }}/${{ vars.ACR_REPOSITORY }}:${{ github.sha }}

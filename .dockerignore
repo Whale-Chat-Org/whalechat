@@ -1,0 +1,16 @@
+# Anything that would either bloat the build context or leak into the image.
+node_modules
+.next
+generated
+.git
+.github
+.env*
+!.env.example
+npm-debug.log*
+.DS_Store
+README.md
+AGENTS.md
+CLAUDE.md
+docs
+start_local.sh
+docker-compose.yml

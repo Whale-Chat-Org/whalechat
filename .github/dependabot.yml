@@ -22,6 +22,11 @@ updates:
     commit-message:
       prefix: build
     labels: [dependencies, docker]
+    ignore:
+      # Node stays on the newest LTS. 26 is current but not LTS, and production
+      # images should not track current. Bump this when 26 goes LTS.
+      - dependency-name: node
+        update-types: [version-update:semver-major]
 
   - package-ecosystem: npm
     directory: "/"
@@ -32,6 +37,20 @@ updates:
       prefix: deps
       prefix-development: deps-dev
     labels: [dependencies]
+    # Three majors this project holds back on purpose. Without these, Dependabot
+    # reopens the same rejected PRs every week.
+    ignore:
+      # Peer constraint, not preference: @better-auth/redis-storage declares
+      # `ioredis@^5`. Dependabot proposed v6 on the first run and CI rejected it
+      # with ERESOLVE. Revisit when that package widens its peer range.
+      - dependency-name: ioredis
+        update-types: [version-update:semver-major]
+      # TypeScript 7 is not yet supported by typescript-eslint.
+      - dependency-name: typescript
+        update-types: [version-update:semver-major]
+      # ESLint 10 breaks the eslint-plugin-react bundled in eslint-config-next.
+      - dependency-name: eslint
+        update-types: [version-update:semver-major]
     groups:
       # One PR per ecosystem rather than thirty. Patch and minor bumps are
       # reviewed together; majors still arrive individually because they are the

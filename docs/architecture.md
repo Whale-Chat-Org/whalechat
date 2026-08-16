@@ -10,6 +10,18 @@ on purpose:
 
 The DeepSeek API key is read server-side only, in `app/api/chat/route.ts`.
 
+## The auth surface
+
+[Better Auth](https://better-auth.com) with
+[Better Auth UI](https://better-auth-ui.com) screens. Every view lives on one
+route, `app/auth/[path]/page.tsx` — `/auth/sign-in`, `/auth/sign-up`,
+`/auth/forgot-password`, `/auth/reset-password`, `/auth/verify-email`,
+`/auth/sign-out`.
+
+`/admin` is linked from the user menu for administrators: approve or revoke
+access, switch someone between `user` and `admin`, add a pre-approved user, sign
+a user out everywhere, impersonate them, or delete them.
+
 ## Authorization is layered, and the layers are not interchangeable
 
 `proxy.ts` is Next 16's renamed middleware. It runs **without database access**,
@@ -63,6 +75,18 @@ Two things that look simplifiable and are not:
   build against a database with no admin prerenders the redirect to
   `/onboarding` into a *static* page, which then redirects there forever — long
   after setup finished.
+
+An interrupted setup resumes at step 2. From there the key can be resent (which
+replaces it, so older emails stop working) or the pending admin discarded to
+claim again with a different address — both only while onboarding is incomplete.
+
+> ⚠️ **Claim it before you expose it.** There is no setup token by design, so on
+> an unclaimed database the first visitor to reach `/onboarding` becomes the
+> administrator. The window closes permanently once step 2 completes, and
+> onboarding never re-opens on a database that has been used.
+
+Once an administrator exists, sign-up is open but *using* the app is not. A new
+account clears two gates: confirm the email, then be approved from `/admin`.
 
 ## Generator-owned directories — do not hand-edit
 

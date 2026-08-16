@@ -58,3 +58,13 @@ Dockerfile's deps stage, for one) must run it explicitly.
 
 **`next-env.d.ts` is gitignored but listed in `tsconfig.json`.** Use
 `npm run typecheck`, which runs `next typegen` first, rather than bare `tsc`.
+
+## Two dependency pins that look stale
+
+`typescript@^6` and `eslint@^9` are held back deliberately: TypeScript 7 is not
+yet supported by `typescript-eslint`, and ESLint 10 breaks the
+`eslint-plugin-react` bundled in `eslint-config-next`. Both can be raised once
+those catch up. `.github/dependabot.yml` ignores those majors so the same
+rejected PR does not reappear weekly — along with `ioredis` (held at v5 by
+`@better-auth/redis-storage`'s peer range) and the Node base image (24 is the
+newest LTS; 26 is current, which production images should not track).

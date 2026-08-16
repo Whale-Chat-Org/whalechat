@@ -22,6 +22,146 @@ route, `app/auth/[path]/page.tsx` — `/auth/sign-in`, `/auth/sign-up`,
 access, switch someone between `user` and `admin`, add a pre-approved user, sign
 a user out everywhere, impersonate them, or delete them.
 
+## Sequences
+
+### First run — claiming the instance
+
+```mermaid
+sequenceDiagram
+    autonumber
+    actor V as Visitor
+    participant P as proxy.ts
+    participant Page as /onboarding
+    participant S as claimAdmin<br/>(server action)
+    participant BA as Better Auth
+    participant PG as Postgres
+    participant R as Redis
+    participant M as Resend
+
+    V->>P: GET /
+    Note over P: /onboarding is exempt —<br/>nobody can be signed in yet
+    P-->>V: 307 → /onboarding
+    V->>Page: GET /onboarding
+    Page->>R: GET whalechat:onboarded
+    R-->>Page: (miss)
+    Page->>PG: users WHERE role = 'admin'
+    PG-->>Page: none → step "claim"
+    Page-->>V: "Set up WhaleChat"
+
+    V->>S: submit email
+    S->>R: INCR rate-limit bucket
+    S->>S: generateLicenseKey() → WHALE-…
+    S->>BA: api.createUser (no headers, role admin)
+    Note over BA,PG: create hook forces banned = true,<br/>reason "Onboarding not completed"
+    BA->>PG: INSERT user + credential account
+    S->>M: email the key
+    M-->>V: 📧 WHALE-XXXXX-XXXXX-XXXXX
+    S-->>V: 307 → /onboarding (now step "activate")
+```
+
+### First run — activating
+
+```mermaid
+sequenceDiagram
+    autonumber
+    actor V as Visitor
+    participant Page as /onboarding
+    participant S as activateAdmin
+    participant CTX as auth.$context
+    participant PG as Postgres
+    participant R as Redis
+
+    V->>Page: GET /onboarding
+    Page->>PG: admin banned with onboarding reason?
+    PG-->>Page: yes → step "activate"
+    Page-->>V: "Enter your license key"
+
+    V->>S: submit key
+    S->>R: INCR rate-limit (10 / 15 min)
+    S->>CTX: internalAdapter.findAccounts(userId)
+    CTX->>PG: SELECT credential account
+    PG-->>CTX: password hash
+    S->>CTX: password.verify(key, hash)
+    alt key is wrong
+        CTX-->>S: false
+        S-->>V: "That key is not right."
+    else key matches
+        CTX-->>S: true
+        S->>PG: UPDATE banned = false
+        S->>R: SET whalechat:onboarded
+        S-->>V: 307 → /auth/sign-in
+    end
+```
+
+### Everyone else — sign up, wait, be approved
+
+```mermaid
+sequenceDiagram
+    autonumber
+    actor U as New user
+    actor A as Admin
+    participant BA as Better Auth
+    participant PG as Postgres
+    participant M as Resend
+
+    U->>BA: POST /api/auth/sign-up/email
+    Note over BA,PG: create hook forces banned = true,<br/>reason "Awaiting administrator approval"
+    BA->>PG: INSERT user
+    BA->>M: verification email
+    BA-->>U: 200 (no session issued)
+
+    U->>BA: POST /api/auth/sign-in/email
+    Note over BA: admin plugin checks on<br/>session.create — not on sign-up
+    BA-->>U: 403 BANNED_USER<br/>"awaiting administrator approval"
+
+    A->>BA: admin.unbanUser(userId)
+    BA->>PG: UPDATE banned = false
+    U->>BA: POST /api/auth/sign-in/email
+    BA->>PG: verify credentials
+    BA-->>U: 200 + session cookie
+```
+
+### Every authenticated request
+
+```mermaid
+sequenceDiagram
+    autonumber
+    actor U as Browser
+    participant P as proxy.ts
+    participant Page as Server component
+    participant BA as auth.api.getSession
+    participant R as Redis
+    participant PG as Postgres
+
+    U->>P: GET /admin (cookie)
+    Note over P: No database access here.<br/>Cookie presence only.
+    alt no cookie
+        P-->>U: 307 → /auth/sign-in
+    else cookie present
+        P->>Page: pass through
+        Page->>BA: getSession(headers)
+        BA->>R: GET session token
+        alt Redis has it
+            R-->>BA: session
+        else Redis flushed or expired
+            R-->>BA: (miss)
+            BA->>PG: SELECT session
+            PG-->>BA: session or null
+        end
+        alt no valid session
+            Page-->>U: 307 → /auth/sign-in
+        else role is not admin
+            Page-->>U: 200 "Not authorised"
+        else
+            Page-->>U: 200 admin portal
+        end
+    end
+```
+
+The last diagram is why the two layers cannot be swapped: `proxy.ts` sees only
+the cookie, so a stale one gets past it — and the page, which can actually check,
+is where the decision is made.
+
 ## Authorization is layered, and the layers are not interchangeable
 
 `proxy.ts` is Next 16's renamed middleware. It runs **without database access**,

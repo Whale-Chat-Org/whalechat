@@ -74,9 +74,14 @@ summarization or context-window management to configure.
 | Doc | Covers |
 |---|---|
 | [docs/commands.md](docs/commands.md) | Every script, running one test, migrations, the local stack |
-| [docs/architecture.md](docs/architecture.md) | The auth layering, the `banned` states, onboarding, and the traps |
+| [docs/architecture.md](docs/architecture.md) | The storage split, generated directories, and the traps |
+| [docs/modules/auth/](docs/modules/auth/README.md) | The auth module, one doc per flow, each with a sequence diagram |
 | [docs/ci-cd.md](docs/ci-cd.md) | The pipeline, its stages, and the Azure setup |
 | [docs/git.md](docs/git.md) | Branching, commit format, attribution |
+
+Auth is self-hosted: Better Auth as a library over your own Postgres and Redis.
+There is no hosted service and no account to register — `BETTER_AUTH_SECRET` is
+a signing key you generate yourself.
 
 [AGENTS.md](AGENTS.md) indexes the same set for coding agents.
 

@@ -25,4 +25,4 @@ Please delete options that are not relevant.
 - [ ] Any dependent changes have been merged and published in downstream modules
 
 ## Contact
-For questions, reach out at [mail@0xarchit.is-a.dev](mailto:mail@0xarchit.is-a.dev).
+For questions, open a discussion or ask on the pull request.

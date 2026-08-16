@@ -29,17 +29,35 @@ you are about to do.
 | Doc | Read it before |
 |---|---|
 | [docs/commands.md](docs/commands.md) | Running, building, testing, or touching the database |
-| [docs/architecture.md](docs/architecture.md) | Changing auth, onboarding, storage, or anything under `lib/` |
+| [docs/architecture.md](docs/architecture.md) | Changing storage, or anything under `lib/` |
+| [docs/modules/auth/](docs/modules/auth/README.md) | Anything touching accounts, sessions or `/admin` |
 | [docs/git.md](docs/git.md) | **Any** commit, branch, merge or pull request |
 | [docs/ci-cd.md](docs/ci-cd.md) | Touching `.github/workflows/`, the Dockerfile, or deployment |
 
-Two rules are short enough to state here, and are the ones most often broken:
+The auth module is split by flow, so read the one you are changing rather than
+all of it:
+
+| Flow | Doc |
+|---|---|
+| First admin claims the instance | [onboarding.md](docs/modules/auth/onboarding.md) |
+| License key, resend, start over | [activation.md](docs/modules/auth/activation.md) |
+| Registration and email verification | [sign-up.md](docs/modules/auth/sign-up.md) |
+| The `banned` gate and approving users | [approval.md](docs/modules/auth/approval.md) |
+| Signing in and out | [sign-in.md](docs/modules/auth/sign-in.md) |
+| Forgot and reset | [password-reset.md](docs/modules/auth/password-reset.md) |
+| `proxy.ts` vs the pages | [authorization.md](docs/modules/auth/authorization.md) |
+| `/admin` capabilities | [admin-portal.md](docs/modules/auth/admin-portal.md) |
+
+Three rules are short enough to state here, and are the ones most often broken:
 
 - **No AI co-authorship.** No `Co-Authored-By:` trailer naming an assistant, no
   "Generated with …" footer, anywhere — commits, PR bodies, merge messages. The
   author is the local git identity. See [docs/git.md](docs/git.md).
 - **Trunk-based.** `main` is always releasable; work happens on short-lived
   branches merged by PR. No long-lived `develop` or `release` branches.
+- **Nothing here uses a hosted Better Auth service.** It is a self-hosted
+  library. `BETTER_AUTH_SECRET` is a locally generated signing key, not an
+  account credential — do not "wire up" an API key or a dashboard.
 
 `README.md` is the human-facing front door and covers the same ground more
 loosely. Where the two disagree, `docs/` is canonical for how to work in the

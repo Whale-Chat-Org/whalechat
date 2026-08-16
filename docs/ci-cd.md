@@ -60,11 +60,13 @@ is worth catching before merge. The push steps never run on a PR.
 - **The image is tagged locally first** (`whalechat:<sha>`), and only re-tagged
   for the registry in `push`. The ACR name may not exist yet, and `//:sha` is not
   a valid reference.
-- **`.trivyignore.yaml` waives seven CVEs**, all in dependencies Next vendors
-  into `next/dist/compiled/` — not ours, and unfixable by updating ours, since
-  16.3.1 is the latest release. Each entry is scoped by `paths` to Next's copy,
-  so the same CVE in a real dependency still fails the scan. The Alpine base
-  layer scans clean; this is entirely about the Node layer.
+- **The Dockerfile deletes npm from the runtime image.** `node:24-alpine`
+  bundles npm, npm bundles its own copies of `tar`, `undici`, `ip-address` and
+  `brace-expansion`, and those were the 7 findings (6 HIGH, 1 CRITICAL) that
+  failed the first real run. Nothing we declare can fix them — they ship inside
+  the base image. The container runs `node server.js` and never uses npm, so
+  removing it deletes the vulnerable code rather than waiving it. There is no
+  `.trivyignore`; if the scan fails, something is genuinely wrong.
 - **`npm audit --audit-level=high`, not `moderate`.** The tree carries one
   moderate advisory, in `@better-auth/oauth-provider`, which npm installs as a
   non-optional peer of `@better-auth-ui/react`. That plugin is not enabled in

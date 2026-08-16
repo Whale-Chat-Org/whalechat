@@ -47,6 +47,23 @@ ENV HOSTNAME=0.0.0.0
 RUN addgroup --system --gid 1001 nodejs \
   && adduser --system --uid 1001 nextjs
 
+# Delete npm from the runtime image.
+#
+# `node:24-alpine` bundles npm, and npm bundles its own copies of tar, undici,
+# ip-address and brace-expansion. Those are what Trivy flags — 6 HIGH and 1
+# CRITICAL, all in `usr/local/lib/node_modules/npm/`, none of them in our
+# dependency tree or Next's. They cannot be fixed by updating anything we
+# declare, because they ship inside the base image.
+#
+# They also do not need to be here at all: the container's entrypoint is
+# `node server.js`, the standalone output carries every module the server
+# touches, and migrations run from the deploy job rather than the container.
+# Removing npm deletes the vulnerable code instead of waiving it, and drops
+# ~10 MB.
+RUN rm -rf /usr/local/lib/node_modules/npm \
+  /usr/local/bin/npm \
+  /usr/local/bin/npx
+
 # `output: "standalone"` traces exactly the node_modules the server touches; the
 # static and public directories are not part of that trace and must be copied.
 COPY --from=builder --chown=nextjs:nodejs /app/.next/standalone ./

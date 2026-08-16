@@ -139,9 +139,6 @@ jobs:
     runs-on: ubuntu-latest
     needs: build
     steps:
-      # .trivyignore.yaml lives in the repo, so the scan needs the source too.
-      - uses: actions/checkout@v7
-
       - name: Download image
         uses: actions/download-artifact@v4
         with:
@@ -152,9 +149,11 @@ jobs:
       #
       # `ignore-unfixed` on purpose: an unpatched CVE in the node:24-alpine base
       # would otherwise block every deploy with nothing actionable to do.
-      # `.trivyignore.yaml` waives CVEs in the dependencies Next vendors into
-      # next/dist/compiled, scoped by path so the same CVE in a real dependency
-      # still fails.
+      #
+      # There is deliberately no .trivyignore. The findings this caught on its
+      # first run were npm's own bundled copies of tar/undici/ip-address/
+      # brace-expansion, and the Dockerfile deletes npm from the runtime image
+      # rather than waiving them. A failure here means something real.
       - name: Trivy
         # Note the `v`. This action tags releases `v0.36.0`, not `0.36.0`.
         uses: aquasecurity/trivy-action@v0.36.0
@@ -164,7 +163,6 @@ jobs:
           ignore-unfixed: true
           exit-code: "1"
           format: table
-          trivyignores: .trivyignore.yaml
 
   push:
     name: Push to ACR

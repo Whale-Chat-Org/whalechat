@@ -27,6 +27,17 @@ export const auth = betterAuth({
   secret: process.env.BETTER_AUTH_SECRET,
   baseURL: APP_URL,
 
+  // Already the default, and set anyway. This instance is entirely self-hosted —
+  // Postgres, Redis and the Better Auth library, with nothing hosted behind it —
+  // and telemetry is the one part of the library that would talk to a service.
+  // Stating it means an upstream default flip cannot quietly turn it on.
+  //
+  // It does NOT close the environment route. The check is
+  // `getBooleanEnvVar("BETTER_AUTH_TELEMETRY", false) || options.telemetry.enabled`
+  // (@better-auth/telemetry/dist/index.mjs), so the env var ORs in and wins over
+  // this. Keep that variable unset wherever this runs.
+  telemetry: { enabled: false },
+
   emailAndPassword: {
     enabled: true,
     requireEmailVerification: true,

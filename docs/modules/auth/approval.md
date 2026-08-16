@@ -35,6 +35,15 @@ Two consequences worth holding on to:
   `POST /api/auth/sign-in/email` that never passes through the page redirects.
   That is why onboarding leans on the ban rather than a separate column.
 
+It also means the ban is checked once, when the session is made. **Do not add a
+`session` block with `cookieCache` to `lib/auth.ts`.** It would put a signed copy
+of the session in the cookie for its lifetime, and a ban — like a revoked
+permission — would keep working until that copy expired. The absence of that
+block is deliberate; see [permissions.md](permissions.md).
+
+Roles are orthogonal to this. A banned user holding every permission still gets
+nothing, because no session is ever created for the resolution to attach to.
+
 `bannedUserMessage` is set to *"Your account is awaiting administrator
 approval."* — the default wording is about abuse, which is wrong for the
 overwhelmingly common case. It is one global string, so a half-claimed

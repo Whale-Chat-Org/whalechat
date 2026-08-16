@@ -10,6 +10,7 @@ npm test                  # vitest run
 npm run test:watch
 npm run db:migrate        # prisma migrate deploy
 npm run db:generate       # prisma generate
+npm run db:seed           # reconcile permissions and built-in roles
 ```
 
 ## Keeping the docs true
@@ -46,14 +47,21 @@ npm run db:migrate                             # apply pending migrations (CI/pr
 The schema is hand-written. Adding a Better Auth plugin usually adds columns;
 `npx @better-auth/cli generate` reports which.
 
+`npm run db:seed` reconciles `auth_permission` with the permission set in
+`lib/rbac/statements.ts` and upserts the built-in roles. It is idempotent, keyed
+on natural keys, and belongs after every migration — a permission added in code
+does not exist to be granted until it has run. A permission in the database that
+code no longer defines is reported rather than deleted; `npm run db:seed -- --prune`
+removes them deliberately. See [modules/auth/permissions.md](modules/auth/permissions.md).
+
 ## Local stack
 
 `./start_local.sh` stops **every** running container (deliberate — it frees the
 ports), brings up Postgres and Redis via `docker-compose.yml`, applies
-migrations, and hands over to `next dev`.
+migrations, seeds the permission catalogue, and hands over to `next dev`.
 
-There is no seed step. The first administrator is claimed at `/onboarding`; see
-[architecture.md](architecture.md#first-run-onboarding).
+The seed creates no accounts. The first administrator is still claimed at
+`/onboarding`; see [architecture.md](architecture.md#first-run-onboarding).
 
 ```bash
 docker compose up -d --wait --remove-orphans   # stores only

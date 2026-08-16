@@ -39,8 +39,9 @@ from its shadcn registry into `components/auth/`. **Regenerate, don't hand-edit*
 | [approval.md](approval.md) | `/admin` | The `banned` column, and how access is granted |
 | [sign-in.md](sign-in.md) | `/auth/sign-in` | Signing in, the ban response, signing out |
 | [password-reset.md](password-reset.md) | `/auth/forgot-password` | Forgot and reset |
-| [authorization.md](authorization.md) | every request | `proxy.ts` vs the pages, session lookup |
-| [admin-portal.md](admin-portal.md) | `/admin` | Roles, sessions, impersonation, user management |
+| [authorization.md](authorization.md) | every request | `proxy.ts` vs the DAL vs the handler |
+| [permissions.md](permissions.md) | every request | Roles, permissions, the `User.role` mirror |
+| [admin-portal.md](admin-portal.md) | `/admin` | Users, roles, sessions, impersonation |
 
 Every auth view is served by one route, `app/auth/[path]/page.tsx`, which maps
 the URL segment to a Better Auth UI view: `sign-in`, `sign-up`,
@@ -53,9 +54,12 @@ the URL segment to a Better Auth UI view: `sign-in`, `sign-up`,
 |---|---|
 | `lib/auth.ts` | Server config — adapter, secondary storage, hooks, `admin()` plugin |
 | `lib/auth-client.ts` | Browser client, with `adminClient()` |
-| `lib/access.ts` | Ban-reason strings and the `Role` type; deliberately free of server imports so client components can use them |
+| `lib/access.ts` | Ban-reason strings, built-in role keys and the `User.role` mirror codec; deliberately free of server imports so client components can use them |
 | `lib/onboarding.ts` | First-run state machine |
 | `lib/session.ts` | `getServerSession`, `isAdmin` |
+| `lib/rbac/` | The permission set, the Data Access Layer, resolution and caching, role and user operations — see [permissions.md](permissions.md) |
+| `app/api/admin/**` | The portal's own endpoints, gated by `withPermission` |
+| `prisma/seed.ts` | Reconciles the permission table with the code |
 | `lib/license-key.ts` | Key generation and normalisation |
 | `lib/rate-limit.ts` | Redis fixed-window counter for the unauthenticated actions |
 | `app/onboarding/actions.ts` | The four onboarding server actions |

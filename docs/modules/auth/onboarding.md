@@ -18,7 +18,7 @@ no dedicated column:
 
 | State | Condition | Page shows |
 |---|---|---|
-| `claim` | no user with `role = "admin"` | "Set up WhaleChat" |
+| `claim` | nobody holds the `admin` role, and there are no users at all | "Set up WhaleChat" |
 | `activate` | an admin banned with `ONBOARDING_PENDING_REASON` | "Enter your license key" |
 | `done` | an admin exists and is not banned | redirects to `/` |
 
@@ -26,13 +26,23 @@ Deriving it rather than adding a column reuses the ban mechanism: a half-claimed
 admin is *already* unable to sign in, including through a direct
 `POST /api/auth/sign-in/email` that never passes the page redirects.
 
-## Two things that look simplifiable and are not
+The admin lookup joins through `user_role` rather than reading `User.role`. That
+column is a mirror holding every role key a user has, so `role = 'admin'` would
+miss an administrator who also holds a second role — see
+[permissions.md](permissions.md).
+
+## Three things that look simplifiable and are not
 
 - **If admins exist but all of them are banned for other reasons, the state is
   `done`, not `claim`.** Reopening would turn "ban the last admin" into a
   takeover, so onboarding never offers itself again on a database that has been
   used. Recovery there is a manual `UPDATE` in psql. Pinned by a test in
   `lib/onboarding.test.ts`.
+- **If there are users but no administrator at all, the state is also `done`.**
+  Roles are revocable now, so "take the admin role away from everyone" was a
+  second route to the same takeover. Nobody can sign up before onboarding
+  finishes — `app/auth/[path]/page.tsx` calls `requireOnboarded()` too — so a
+  populated database provably means setup already happened. Also pinned by a test.
 - **`getOnboardingState()` calls `connection()` first.** Without it, a build
   against a database with no admin prerenders the redirect to `/onboarding` into
   a *static* page — which then redirects there forever, long after setup
@@ -61,8 +71,8 @@ sequenceDiagram
     V->>Page: GET /onboarding
     Page->>R: GET whalechat:onboarded
     R-->>Page: (miss)
-    Page->>PG: users WHERE role = 'admin'
-    PG-->>Page: none → step "claim"
+    Page->>PG: users joined through user_role WHERE role.key = 'admin'
+    PG-->>Page: none, and no users at all → step "claim"
     Page-->>V: "Set up WhaleChat"
 
     V->>S: submit email

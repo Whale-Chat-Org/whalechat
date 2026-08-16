@@ -45,7 +45,8 @@ all of it:
 | The `banned` gate and approving users | [approval.md](docs/modules/auth/approval.md) |
 | Signing in and out | [sign-in.md](docs/modules/auth/sign-in.md) |
 | Forgot and reset | [password-reset.md](docs/modules/auth/password-reset.md) |
-| `proxy.ts` vs the pages | [authorization.md](docs/modules/auth/authorization.md) |
+| `proxy.ts` vs the DAL vs the handler | [authorization.md](docs/modules/auth/authorization.md) |
+| Roles, permissions, the `User.role` mirror | [permissions.md](docs/modules/auth/permissions.md) |
 | `/admin` capabilities | [admin-portal.md](docs/modules/auth/admin-portal.md) |
 
 Three rules are short enough to state here, and are the ones most often broken:

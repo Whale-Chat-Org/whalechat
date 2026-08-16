@@ -3,8 +3,9 @@
 A DeepSeek chat client with a self-hosted auth module.
 
 **Postgres (Prisma 7) is the only durable store**, with Redis as secondary
-storage for sessions. It holds four Better Auth tables, `chat` and `message`, and
-the migration ledger.
+storage for sessions. It holds four Better Auth tables, the five RBAC tables
+(`auth_role`, `auth_permission`, `role_permission`, `user_role`,
+`access_version`), `chat` and `message`, and the migration ledger.
 
 The DeepSeek API key is read server-side only, in `app/api/chat/route.ts`. The
 browser never talks to `api.deepseek.com`.
@@ -49,9 +50,15 @@ a sequence diagram.
 Start there for anything touching accounts, sessions or `/admin`. The two things
 worth knowing before you read any of it:
 
-- Authorization is split between `proxy.ts` (cookie presence only, no database)
-  and the pages (the real check). They are not interchangeable —
-  [modules/auth/authorization.md](modules/auth/authorization.md).
+- Authorization is split three ways: `proxy.ts` (cookie presence only, no
+  database), the Data Access Layer in `lib/rbac/dal.ts` (session and permissions,
+  memoized per request), and the page or route handler (the real check). They are
+  not interchangeable — [modules/auth/authorization.md](modules/auth/authorization.md).
+- Permissions are defined in code and roles in Postgres. `User.role` is a
+  *mirror* of the `user_role` join table, written only by `lib/rbac/roles.ts` and
+  only through Better Auth's internal adapter — a direct `prisma.user.update`
+  leaves every cached session reporting the old roles.
+  [modules/auth/permissions.md](modules/auth/permissions.md).
 - The `databaseHooks.user.create.before` hook in `lib/auth.ts` forces
   `banned: true` unconditionally. "Simplifying" it to `user.banned ?? true`
   opens the approval gate for every registration —

@@ -62,3 +62,14 @@ Three rules are short enough to state here, and are the ones most often broken:
 `README.md` is the human-facing front door and covers the same ground more
 loosely. Where the two disagree, `docs/` is canonical for how to work in the
 repo, and the code is canonical for what it does.
+
+## Keeping these honest
+
+Run **`/sync-context`** after a change that moves anything the docs describe — a
+renamed file, a new script, a changed default, a reworked flow. It re-checks
+every claim against the code rather than against itself, fixes the drift, and
+reports what it could not verify. Pass a path to narrow it:
+`/sync-context docs/modules/auth`.
+
+It leaves changes in the working tree; it does not commit. Definition lives in
+[.claude/commands/sync-context.md](.claude/commands/sync-context.md).

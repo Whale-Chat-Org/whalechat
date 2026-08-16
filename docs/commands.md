@@ -12,6 +12,18 @@ npm run db:migrate        # prisma migrate deploy
 npm run db:generate       # prisma generate
 ```
 
+## Keeping the docs true
+
+```
+/sync-context                      # in Claude Code — sweep every doc
+/sync-context docs/modules/auth    # narrow it
+```
+
+Re-validates every claim in the docs against the code as it is now — reading
+files, running commands and checking installed versions rather than trusting
+what the docs already say — then fixes the drift and reports anything it could
+not verify. Leaves changes unstaged.
+
 ## Running one test
 
 ```bash

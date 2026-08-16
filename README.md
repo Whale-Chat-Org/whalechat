@@ -223,16 +223,16 @@ Action versions are pinned to a major (`@v7`), which picks up patches
 automatically, and [`dependabot.yml`](.github/dependabot.yml) opens a weekly PR
 when a new major, base image or npm release lands.
 
-[`codeql.yml`](.github/workflows/codeql.yml) is separate and will fail on a
-private repo until GitHub Code Security is enabled — deliberately isolated so
-that never blocks a deploy.
+[`codeql.yml`](.github/workflows/codeql.yml) is separate. It runs free on this
+public repo; it is isolated so that, were the repo ever made private without
+GitHub Code Security, its failure could not block a deploy.
 
 > Full stage-by-stage detail, including why each scanner threshold is set where
 > it is, is in [docs/ci-cd.md](docs/ci-cd.md).
 
 ### Before it can run
 
-1. **Push the repo** to <https://github.com/lowjungxuan98/whalechat>. Nothing runs
+1. **Push the repo** to <https://github.com/Whale-Chat-Org/whalechat>. Nothing runs
    until the first push.
 2. **Create a `production` environment** with required reviewers under Settings →
    Environments. `environment: production` in the YAML is *not* the gate on its

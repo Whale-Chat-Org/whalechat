@@ -1,11 +1,10 @@
 # Static analysis, kept in its own workflow so it can never block a deploy.
 #
-# ⚠️ This will FAIL on a private repository until GitHub Code Security is
-# enabled for it. Code scanning on private repos is part of GitHub Advanced
-# Security (paid Team/Enterprise); on a public repo it is free and works as-is.
-# It lives here rather than inside ci-cd.yml precisely so that licensing failure
-# stays contained — the pipeline should not stop shipping because a scanner the
-# account is not entitled to cannot run.
+# The repository is public, so code scanning is free and this runs as-is. It
+# would FAIL if the repo were ever made private without GitHub Code Security,
+# which is the paid Team/Enterprise product — that is why it lives here rather
+# than inside ci-cd.yml. A scanner the account is not entitled to must never
+# stop the pipeline shipping.
 #
 # Nothing else to configure: `security-events: write` plus the default query
 # suite is the whole setup.

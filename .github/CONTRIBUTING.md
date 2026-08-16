@@ -6,7 +6,7 @@ Thank you for considering contributing to WhaleChat! We welcome contributions fr
 
 ### Reporting Issues
 
-If you encounter any bugs, glitches, or have suggestions for improvements, please open an issue in the [GitHub repository](https://github.com/lowjungxuan98/whalechat/issues).
+If you encounter any bugs, glitches, or have suggestions for improvements, please open an issue in the [GitHub repository](https://github.com/Whale-Chat-Org/whalechat/issues).
 
 ### Submitting Pull Requests
 

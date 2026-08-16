@@ -67,13 +67,14 @@ is worth catching before merge. The push steps never run on a PR.
   `v0.36.0`; the bare form does not resolve.
 - **Gitleaks runs as the CLI via Docker**, not `gitleaks-action`. The Action needs
   a paid licence for organisation-owned repos; the CLI is MIT everywhere.
-- **CodeQL is a separate workflow** (`codeql.yml`). Code scanning on a private
-  repo requires GitHub Code Security, so it fails until the repo is public or on
-  a paid plan — and that must never block a deploy.
+- **CodeQL is a separate workflow** (`codeql.yml`). It runs free because the
+  repository is public; on a private repo it would need GitHub Code Security.
+  Keeping it out of `ci-cd.yml` means an entitlement it may not have can never
+  block a deploy.
 
 ## Setup
 
-The remote is `https://github.com/lowjungxuan98/whalechat`. Nothing runs until
+The remote is `https://github.com/Whale-Chat-Org/whalechat`. Nothing runs until
 the first push.
 
 1. **Create a `production` environment with required reviewers** (Settings →

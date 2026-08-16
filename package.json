@@ -4,7 +4,7 @@
   "private": true,
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/lowjungxuan98/whalechat.git"
+    "url": "git+https://github.com/Whale-Chat-Org/whalechat.git"
   },
   "license": "MIT",
   "scripts": {

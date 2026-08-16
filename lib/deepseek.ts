@@ -11,11 +11,13 @@ const DEEPSEEK_BASE_URL = "https://api.deepseek.com/v1";
 /** The models offered in the chat's model picker. */
 export const DEEPSEEK_MODELS = ["deepseek-v4-flash", "deepseek-v4-pro"] as const;
 
+/** A model id the picker offers, as opposed to any string. */
 export type DeepSeekModel = (typeof DEEPSEEK_MODELS)[number];
 
 /** Model assigned to new chats. */
 export const DEFAULT_MODEL: DeepSeekModel = "deepseek-v4-flash";
 
+/** The one upstream endpoint this app calls. */
 export const CHAT_COMPLETIONS_URL = `${DEEPSEEK_BASE_URL}/chat/completions`;
 
 /**

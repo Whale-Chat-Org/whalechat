@@ -26,6 +26,13 @@ export type OnboardingState =
  */
 const ONBOARDED_KEY = "whalechat:onboarded";
 
+/**
+ * Where first-run setup has got to, derived from the admin accounts that exist.
+ *
+ * @remarks There is no dedicated column — the ban mechanism carries the state,
+ * so a half-claimed administrator is *already* unable to sign in, including
+ * through a direct `POST /api/auth/sign-in/email`.
+ */
 export async function getOnboardingState(): Promise<OnboardingState> {
   // Answer only at request time. Without this, a build run against a database
   // with no administrator prerenders the redirect to /onboarding into a static

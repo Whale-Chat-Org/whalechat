@@ -24,23 +24,17 @@ import {
   REVOKED_REASON,
   type Role,
 } from "@/lib/access";
+import type { AdminUser, RunAction } from "@/lib/admin";
 import { authClient } from "@/lib/auth-client";
 
-export interface AdminUser {
-  id: string;
-  name: string;
-  email: string;
-  emailVerified: boolean;
-  role?: string | null;
-  banned?: boolean | null;
-  banReason?: string | null;
-  createdAt: string | Date;
+interface UserRowProps {
+  user: AdminUser;
+  /** Disables the actions an administrator must not aim at themselves. */
+  isSelf: boolean;
+  /** True while any row's action is in flight, so the table cannot be raced. */
+  busy: boolean;
+  run: RunAction;
 }
-
-type RunAction = (args: {
-  action: () => Promise<{ error?: { message?: string } | null }>;
-  success: string;
-}) => void;
 
 /**
  * Three states, all read off the one `banned` column the admin plugin owns:
@@ -55,17 +49,8 @@ function status(user: AdminUser) {
   return { label: "Revoked", variant: "destructive" as const };
 }
 
-export function UserRow({
-  user,
-  isSelf,
-  busy,
-  run,
-}: {
-  user: AdminUser;
-  isSelf: boolean;
-  busy: boolean;
-  run: RunAction;
-}) {
+/** One account: who they are, their status and role, and the actions on them. */
+export function UserRow({ user, isSelf, busy, run }: UserRowProps) {
   const router = useRouter();
   const state = status(user);
   const pending = user.banned && user.banReason === PENDING_APPROVAL_REASON;

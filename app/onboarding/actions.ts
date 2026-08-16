@@ -28,8 +28,13 @@ const TOO_MANY = "Too many attempts. Wait a few minutes and try again.";
  * it only exists between here and the password hash.
  */
 async function deliverKey(email: string, key: string, resent: boolean) {
+  // Doubles as the subject line, so the mail reads the same in the list and open.
+  const heading = resent
+    ? "Your new license key"
+    : "Your WhaleChat license key";
+
   const { text, html } = codeEmail({
-    heading: resent ? "Your new license key" : "Your WhaleChat license key",
+    heading,
     body: resent
       ? "Here is a new license key for this instance. Any key sent before this one has stopped working."
       : "Enter this key to finish setting up WhaleChat. It also becomes your password, so keep it until you have changed it in your account settings.",
@@ -38,12 +43,7 @@ async function deliverKey(email: string, key: string, resent: boolean) {
       "If you did not request this, someone is setting up a WhaleChat instance with your address. Ignore this and they cannot finish.",
   });
 
-  await sendMail({
-    to: email,
-    subject: resent ? "Your new license key" : "Your WhaleChat license key",
-    text,
-    html,
-  });
+  await sendMail({ to: email, subject: heading, text, html });
 }
 
 /**

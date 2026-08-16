@@ -36,6 +36,11 @@ function logUndeliverable(reason: string, to: string, subject: string, text: str
   console.error(`[email] ${reason} — "${subject}" was not sent to ${to}.\n${text}`);
 }
 
+/**
+ * Send one message, or log it where a developer can still reach it.
+ *
+ * @remarks Never throws — see {@link logUndeliverable} for why that matters.
+ */
 export async function sendMail({ to, subject, text, html }: SendMailArgs) {
   if (!resend) {
     logUndeliverable("RESEND_API_KEY is not set", to, subject, text);

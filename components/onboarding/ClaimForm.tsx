@@ -2,6 +2,7 @@
 
 import { useActionState } from "react";
 import { claimAdmin, type OnboardingResult } from "@/app/onboarding/actions";
+import { FormError } from "@/components/onboarding/FormError";
 import { SubmitButton } from "@/components/onboarding/SubmitButton";
 import {
   Card,
@@ -47,11 +48,7 @@ export function ClaimForm() {
             </FieldDescription>
           </Field>
 
-          {result.error && (
-            <p role="alert" className="text-destructive text-sm">
-              {result.error}
-            </p>
-          )}
+          <FormError message={result.error} />
 
           <SubmitButton>Send my license key</SubmitButton>
         </form>

@@ -46,7 +46,7 @@ export function proxy(request: NextRequest) {
   return NextResponse.next();
 }
 
+/** Everything except Next internals, the auth endpoints and static files. */
 export const config = {
-  // Everything except Next internals, the auth endpoints and static files.
   matcher: ["/((?!api/auth|_next/static|_next/image|favicon.ico).*)"],
 };

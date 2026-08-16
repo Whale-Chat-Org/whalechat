@@ -18,6 +18,7 @@ interface ConfirmDialogProps {
   onOpenChange: (open: boolean) => void;
   title: string;
   description: string;
+  /** Label on the destructive button. Defaults to "Confirm". */
   confirmLabel?: string;
   onConfirm: () => void;
 }

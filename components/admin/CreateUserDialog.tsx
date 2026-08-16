@@ -4,7 +4,6 @@ import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { UserPlus } from "lucide-react";
 import { useState } from "react";
 import { toast } from "sonner";
-import { adminUsersKey } from "@/components/admin/AdminUsers";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -26,6 +25,7 @@ import {
 } from "@/components/ui/select";
 import { Spinner } from "@/components/ui/spinner";
 import type { Role } from "@/lib/access";
+import { adminUsersKey } from "@/lib/admin";
 import { authClient } from "@/lib/auth-client";
 
 /**

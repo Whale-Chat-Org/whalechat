@@ -7,6 +7,7 @@ import {
   startOver,
   type OnboardingResult,
 } from "@/app/onboarding/actions";
+import { FormError } from "@/components/onboarding/FormError";
 import { SubmitButton } from "@/components/onboarding/SubmitButton";
 import { Button } from "@/components/ui/button";
 import {
@@ -60,11 +61,7 @@ export function ActivateForm({ email }: { email: string }) {
             </FieldDescription>
           </Field>
 
-          {result.error && (
-            <p role="alert" className="text-destructive text-sm">
-              {result.error}
-            </p>
-          )}
+          <FormError message={result.error} />
 
           <SubmitButton>Finish setup</SubmitButton>
         </form>
@@ -111,11 +108,7 @@ export function ActivateForm({ email }: { email: string }) {
                 </FieldDescription>
               </Field>
 
-              {restartResult.error && (
-                <p role="alert" className="text-destructive text-sm">
-                  {restartResult.error}
-                </p>
-              )}
+              <FormError message={restartResult.error} />
 
               <SubmitButton variant="destructive">
                 Discard and start over

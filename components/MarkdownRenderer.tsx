@@ -99,6 +99,53 @@ function styled(
   return Styled;
 }
 
+/** A fenced code block with a hover-revealed copy button. */
+const CodeBlock = memo(function CodeBlock({
+  language,
+  code,
+}: {
+  language: string;
+  code: string;
+}) {
+  const { copied, copy } = useCopyToClipboard();
+
+  return (
+    <div className="code-block relative group my-3 sm:my-4 max-w-full overflow-hidden">
+      <Button
+        variant="ghost"
+        size="icon"
+        className="absolute top-2 right-2 h-6 w-6 sm:h-8 sm:w-8 opacity-0 group-hover:opacity-100 transition-opacity z-10 bg-background/80 hover:bg-background"
+        onClick={() => copy(code)}
+      >
+        {copied ? (
+          <Check className="h-3 w-3 sm:h-4 sm:w-4" />
+        ) : (
+          <Copy className="h-3 w-3 sm:h-4 sm:w-4" />
+        )}
+      </Button>
+      <div className="overflow-x-auto rounded-md sm:rounded-lg max-w-full scrollbar-thin">
+        <SyntaxHighlighter
+          style={atomOneDark}
+          language={language || "text"}
+          PreTag="div"
+          className="!my-0 !rounded-md sm:!rounded-lg text-xs sm:text-sm"
+          customStyle={{
+            margin: 0,
+            borderRadius: "0.375rem",
+            padding: "0.75rem",
+            maxWidth: "100%",
+            fontSize: "inherit",
+          }}
+          codeTagProps={{ style: { fontSize: "inherit" } }}
+        >
+          {code}
+        </SyntaxHighlighter>
+      </div>
+    </div>
+  );
+});
+
+/** The element overrides handed to react-markdown, styling and all. */
 const components: Components = {
   code({ node, className, children, ...props }: MarkdownElementProps) {
     void node;
@@ -182,6 +229,7 @@ const components: Components = {
 };
 
 interface MarkdownRendererProps {
+  /** Raw markdown as the assistant wrote it. */
   content: string;
 }
 
@@ -215,52 +263,6 @@ export const MarkdownRenderer = memo(function MarkdownRenderer({
       >
         {processedContent}
       </ReactMarkdown>
-    </div>
-  );
-});
-
-/** A fenced code block with a hover-revealed copy button. */
-const CodeBlock = memo(function CodeBlock({
-  language,
-  code,
-}: {
-  language: string;
-  code: string;
-}) {
-  const { copied, copy } = useCopyToClipboard();
-
-  return (
-    <div className="code-block relative group my-3 sm:my-4 max-w-full overflow-hidden">
-      <Button
-        variant="ghost"
-        size="icon"
-        className="absolute top-2 right-2 h-6 w-6 sm:h-8 sm:w-8 opacity-0 group-hover:opacity-100 transition-opacity z-10 bg-background/80 hover:bg-background"
-        onClick={() => copy(code)}
-      >
-        {copied ? (
-          <Check className="h-3 w-3 sm:h-4 sm:w-4" />
-        ) : (
-          <Copy className="h-3 w-3 sm:h-4 sm:w-4" />
-        )}
-      </Button>
-      <div className="overflow-x-auto rounded-md sm:rounded-lg max-w-full scrollbar-thin">
-        <SyntaxHighlighter
-          style={atomOneDark}
-          language={language || "text"}
-          PreTag="div"
-          className="!my-0 !rounded-md sm:!rounded-lg text-xs sm:text-sm"
-          customStyle={{
-            margin: 0,
-            borderRadius: "0.375rem",
-            padding: "0.75rem",
-            maxWidth: "100%",
-            fontSize: "inherit",
-          }}
-          codeTagProps={{ style: { fontSize: "inherit" } }}
-        >
-          {code}
-        </SyntaxHighlighter>
-      </div>
     </div>
   );
 });

@@ -5,18 +5,22 @@ import mermaid from "mermaid";
 import { AlertCircle } from "lucide-react";
 
 interface MermaidDiagramProps {
+  /** The body of a ```mermaid fence, without the fence itself. */
   code: string;
 }
 
 /** mermaid.initialize is global, so only the first mounted diagram runs it. */
 let isInitialized = false;
 
+/** The node mermaid appends to <body> when a diagram fails to parse. */
+const ERROR_NODE_ID = "dmermaid-error";
+
 /** Selector for the stray nodes mermaid appends to <body> on a parse failure. */
-const STRAY_ERROR_SELECTOR = '#dmermaid-error, [id^="mermaid-"]';
+const STRAY_ERROR_SELECTOR = `#${ERROR_NODE_ID}, [id^="mermaid-"]`;
 
 /** Remove the error node mermaid leaves behind after a failed render. */
 function removeStrayErrorNode() {
-  document.getElementById("dmermaid-error")?.remove();
+  document.getElementById(ERROR_NODE_ID)?.remove();
 }
 
 /** Render a ```mermaid fence to SVG, falling back to the source on a syntax error. */

@@ -5,7 +5,7 @@ import { Search } from "lucide-react";
 import { useMemo, useState } from "react";
 import { toast } from "sonner";
 import { CreateUserDialog } from "@/components/admin/CreateUserDialog";
-import { UserRow, type AdminUser } from "@/components/admin/UserRow";
+import { UserRow } from "@/components/admin/UserRow";
 import {
   InputGroup,
   InputGroupAddon,
@@ -20,14 +20,13 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
+import { adminUsersKey, type AdminAction, type AdminUser } from "@/lib/admin";
 import { authClient } from "@/lib/auth-client";
-
-/** Query key every mutation below invalidates once it lands. */
-export const adminUsersKey = ["admin", "users"] as const;
 
 /** One page is plenty for a portal this size; search covers the rest. */
 const PAGE_SIZE = 100;
 
+/** The users table: search, the create dialog, and one row per account. */
 export function AdminUsers({ currentUserId }: { currentUserId: string }) {
   const [search, setSearch] = useState("");
   const queryClient = useQueryClient();
@@ -60,12 +59,7 @@ export function AdminUsers({ currentUserId }: { currentUserId: string }) {
    * refetches once it succeeds.
    */
   const { mutate: run, isPending: isMutating } = useMutation({
-    mutationFn: async ({
-      action,
-    }: {
-      action: () => Promise<{ error?: { message?: string } | null }>;
-      success: string;
-    }) => {
+    mutationFn: async ({ action }: AdminAction) => {
       const { error } = await action();
       if (error) throw new Error(error.message ?? "Something went wrong");
     },

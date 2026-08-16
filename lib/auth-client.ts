@@ -8,4 +8,5 @@ export const authClient = createAuthClient({
   plugins: [adminClient()],
 });
 
+/** The methods used often enough to be worth naming directly. */
 export const { signIn, signOut, signUp, useSession } = authClient;

@@ -1,11 +1,12 @@
 # WhaleChat
 
-A minimal, local-first chat client for the DeepSeek API, with a self-hosted auth
+A minimal, self-hosted chat client for the DeepSeek API, with a self-hosted auth
 module in front of it.
 
-Chats and messages live in your browser's IndexedDB and never reach the server.
-Postgres holds accounts only. The DeepSeek key lives in `.env.local` and is read
-**server-side only** — it never reaches the browser.
+Chats and messages are stored in Postgres alongside accounts, scoped to the user
+who owns them, so a conversation started on one device is there on the next. The
+DeepSeek key lives in `.env.local` and is read **server-side only** — it never
+reaches the browser.
 
 There are no admin credentials in the environment: the first administrator
 claims the instance at `/onboarding` and everyone after them waits for approval.
@@ -92,8 +93,8 @@ merged by pull request. See [docs/git.md](docs/git.md).
 
 ## Stack
 
-Next.js 16 (App Router), React 19, Tailwind CSS 4, shadcn/ui, Zustand and
-localforage on the front; Better Auth, Prisma 7, Postgres and Redis behind it.
+Next.js 16 (App Router), React 19, Tailwind CSS 4, shadcn/ui, TanStack Query and
+Zustand on the front; Better Auth, Prisma 7, Postgres and Redis behind it.
 
 ## License
 

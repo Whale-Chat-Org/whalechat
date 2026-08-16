@@ -1,16 +1,43 @@
 # Architecture
 
-A DeepSeek chat client with a self-hosted auth module. Two storage systems, split
-on purpose:
+A DeepSeek chat client with a self-hosted auth module.
 
-- **Chats and messages** live in the browser's IndexedDB (`lib/db.ts` via
-  localforage, driven by `store/chatStore.ts`). They never reach the server.
-- **Auth only** lives in Postgres (Prisma 7), with Redis as secondary storage for
-  sessions. Postgres holds nothing else — four Better Auth tables and the
-  migration ledger.
+**Postgres (Prisma 7) is the only durable store**, with Redis as secondary
+storage for sessions. It holds four Better Auth tables, `chat` and `message`, and
+the migration ledger.
 
 The DeepSeek API key is read server-side only, in `app/api/chat/route.ts`. The
 browser never talks to `api.deepseek.com`.
+
+## Chat storage
+
+Chats and messages are reached exclusively through **`lib/chats.ts`**, which
+takes the owner's `userId` as its first argument and applies it *inside* every
+query — `WHERE id = ? AND userId = ?`, never a fetch followed by a check. A chat
+id belonging to another user therefore matches no row: reads return `null` (the
+route answers 404) and writes report zero rows affected. `lib/chats.test.ts`
+covers that property with a fake that honours the `where` clause, so dropping the
+scoping makes those tests fail rather than silently pass.
+
+The `userId` always comes from `getSessionUserId()` (`lib/api-server.ts`), which
+validates the session — never from the request body or a path segment. Every
+`/api/chats` handler is wrapped in `withUser()` from the same module, so the id
+arrives as an argument and a handler cannot run without one. See
+[modules/auth/authorization.md](modules/auth/authorization.md) for why `proxy.ts`
+is not a substitute.
+
+On the client, the split is:
+
+- **TanStack Query** owns chats and messages — fetching, caching and
+  invalidation (`hooks/use-chats.ts`, over `lib/chat-api.ts`). `app/page.tsx`
+  prefetches the chat list into the same key so the sidebar renders populated.
+- **Zustand** (`store/chatStore.ts`) holds `currentChatId` and nothing else. It
+  is the one piece of genuinely client-side state: a UI choice that never
+  round-trips.
+
+Mutations invalidate rather than patching the cache, and none are optimistic —
+the server is awaited and its answer is what renders, so the screen cannot show a
+message that failed to save.
 
 ## Auth
 

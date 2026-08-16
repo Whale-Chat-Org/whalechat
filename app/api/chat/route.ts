@@ -1,17 +1,12 @@
-import { headers } from "next/headers";
-import { auth } from "@/lib/auth";
+import { errorResponse, getSessionUserId } from "@/lib/api-server";
 import { CHAT_COMPLETIONS_URL, TEMPERATURE, resolveModel } from "@/lib/deepseek";
 import { getOnboardingState } from "@/lib/onboarding";
 import { ChatContextMessage } from "@/types/chat";
 
+/** The body the browser posts: a whole conversation, plus which model gets it. */
 interface ChatRequest {
   model?: string;
   messages?: ChatContextMessage[];
-}
-
-/** JSON error envelope the client reads via `data.error`. */
-function errorResponse(message: string, status: number) {
-  return Response.json({ error: message }, { status });
 }
 
 /**
@@ -29,10 +24,10 @@ export async function POST(req: Request) {
     return errorResponse("This instance has not been set up yet", 503);
   }
 
-  // `proxy.ts` already 401s unauthenticated /api/* calls, but that is an
-  // unvalidated cookie check. Spending the API key deserves the real one.
-  const session = await auth.api.getSession({ headers: await headers() });
-  if (!session) return errorResponse("Not authenticated", 401);
+  // Spending the API key deserves a validated session, not proxy.ts's cookie
+  // check — see the remarks on getSessionUserId.
+  const userId = await getSessionUserId();
+  if (!userId) return errorResponse("Not authenticated", 401);
 
   const apiKey = process.env.DEEPSEEK_API_KEY;
   if (!apiKey) {

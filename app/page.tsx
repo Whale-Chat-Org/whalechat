@@ -1,6 +1,8 @@
 import { dehydrate, HydrationBoundary } from "@tanstack/react-query";
 import { redirect } from "next/navigation";
 import { ChatApp } from "@/components/ChatApp";
+import { chatsKey } from "@/lib/chat-api";
+import { listChats } from "@/lib/chats";
 import { requireOnboarded } from "@/lib/onboarding";
 import { getServerSession, isAdmin } from "@/lib/session";
 
@@ -17,6 +19,14 @@ export default async function Home() {
   const { queryClient, session } = await getServerSession();
 
   if (!session) redirect("/auth/sign-in");
+
+  // Prime the sidebar so it renders populated rather than flashing a spinner.
+  // Calls the data layer directly — a server component has the session already,
+  // so there is no reason to make an HTTP request back into our own route.
+  await queryClient.prefetchQuery({
+    queryKey: chatsKey,
+    queryFn: () => listChats(session.user.id),
+  });
 
   return (
     <HydrationBoundary state={dehydrate(queryClient)}>

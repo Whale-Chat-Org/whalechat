@@ -13,12 +13,15 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { ChatSession } from "@/types/chat";
+import { useDeleteChat } from "@/hooks/use-chats";
 import { useChatStore } from "@/store/chatStore";
 import { ConfirmDialog } from "./ConfirmDialog";
 import { DeleteMenuItem } from "./DeleteMenuItem";
+import { toast } from "sonner";
 
 interface ChatListItemProps {
   chat: ChatSession;
+  /** Highlights the row, and decides whether deleting clears the open chat. */
   isActive: boolean;
   onSelect: () => void;
 }
@@ -29,8 +32,20 @@ export function ChatListItem({
   isActive,
   onSelect,
 }: ChatListItemProps) {
-  const { deleteChat } = useChatStore();
+  const setCurrentChat = useChatStore((state) => state.setCurrentChat);
+  const { mutate: deleteChat } = useDeleteChat();
   const [confirmOpen, setConfirmOpen] = useState(false);
+
+  const handleDelete = () => {
+    deleteChat(chat.id, {
+      // Deleting the open chat leaves nothing to show; fall back to the empty
+      // state rather than a pane pointing at an id that is gone.
+      onSuccess: () => {
+        if (isActive) setCurrentChat(null);
+      },
+      onError: () => toast.error("Failed to delete chat"),
+    });
+  };
 
   return (
     <>
@@ -66,7 +81,7 @@ export function ChatListItem({
         title="Delete chat?"
         description={`"${chat.name}" and all its messages will be permanently deleted.`}
         confirmLabel="Delete"
-        onConfirm={() => deleteChat(chat.id)}
+        onConfirm={handleDelete}
       />
     </>
   );

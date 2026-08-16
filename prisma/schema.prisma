@@ -1,8 +1,13 @@
-// Better Auth's schema, written by hand rather than by `@better-auth/cli generate`
-// so the admin plugin's columns and the cascade rules are visible in one place.
+// Two halves, and the distinction matters when editing them.
 //
-// Keep this in sync with `lib/auth.ts`: adding a Better Auth plugin usually adds
-// fields here too. `npx @better-auth/cli generate` will tell you what is missing.
+// User / Session / Account / Verification are Better Auth's, written by hand
+// rather than by `@better-auth/cli generate` so the admin plugin's columns and
+// the cascade rules are visible in one place. Keep them in sync with
+// `lib/auth.ts`: adding a Better Auth plugin usually adds fields here too.
+// `npx @better-auth/cli generate` will tell you what is missing.
+//
+// Chat / Message are ours, and free of that constraint — see the comment above
+// them.
 
 generator client {
   provider = "prisma-client"
@@ -33,6 +38,7 @@ model User {
 
   sessions Session[]
   accounts Account[]
+  chats    Chat[]
 
   @@map("user")
 }
@@ -86,4 +92,53 @@ model Verification {
 
   @@index([identifier])
   @@map("verification")
+}
+
+// --- Chat ---
+// Unlike the four tables above, these are ours rather than Better Auth's, so
+// they use `@default(cuid())` for ids and a real enum where the values are
+// fixed. Every query against them is scoped by `userId` in `lib/chats.ts`.
+
+model Chat {
+  id           String   @id @default(cuid())
+  userId       String
+  name         String
+  model        String
+  systemPrompt String   @default("")
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  user     User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  messages Message[]
+
+  // Matches the sidebar's only query: this user's chats, most recent first.
+  @@index([userId, updatedAt(sort: Desc)])
+  @@map("chat")
+}
+
+model Message {
+  id         String   @id @default(cuid())
+  chatId     String
+  role       Role
+  content    String
+  // Total tokens billed for the turn, when DeepSeek reported it.
+  tokenCount Int?
+  createdAt  DateTime @default(now())
+
+  chat Chat @relation(fields: [chatId], references: [id], onDelete: Cascade)
+
+  @@index([chatId, createdAt])
+  @@map("message")
+}
+
+// `User.role` is a String because Better Auth owns that column. This one is
+// ours, so Postgres enforces it. `system` is never persisted — the system turn
+// is synthesized from `Chat.systemPrompt` in `lib/api.ts` — but it stays here so
+// the enum matches `ChatContextMessage`.
+enum Role {
+  system
+  user
+  assistant
+
+  @@map("role")
 }

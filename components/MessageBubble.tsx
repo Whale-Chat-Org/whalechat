@@ -14,13 +14,17 @@ import {
 import { ConfirmDialog } from "./ConfirmDialog";
 import { DeleteMenuItem } from "./DeleteMenuItem";
 import { useCopyToClipboard } from "@/hooks/use-copy-to-clipboard";
-import { useChatStore } from "@/store/chatStore";
+import { useDeleteMessage } from "@/hooks/use-chats";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
 
 interface MessageBubbleProps {
+  /** The turn to render. Carries its own `chatId`, so the store is not consulted. */
   message: Message;
 }
+
+/** Shared by the two hover-revealed icon buttons under a message. */
+const ACTION_BUTTON = "size-7 text-muted-foreground hover:text-foreground";
 
 /**
  * One turn in the conversation: the user's message as a right-aligned bubble,
@@ -34,7 +38,7 @@ export const MessageBubble = memo(
     const isUser = message.role === "user";
     const [confirmOpen, setConfirmOpen] = useState(false);
     const { copied, copy } = useCopyToClipboard();
-    const { currentChatId, deleteMessage } = useChatStore();
+    const { mutate: deleteMessage } = useDeleteMessage();
 
     const handleCopy = async () => {
       const ok = await copy(message.content);
@@ -42,14 +46,16 @@ export const MessageBubble = memo(
       else toast.error("Failed to copy");
     };
 
-    const handleDelete = async () => {
-      if (!currentChatId) return;
-      try {
-        await deleteMessage(currentChatId, message.id);
-        toast.success("Message deleted");
-      } catch {
-        toast.error("Failed to delete message");
-      }
+    // The message carries its own chatId, so this does not depend on which chat
+    // the store thinks is open.
+    const handleDelete = () => {
+      deleteMessage(
+        { chatId: message.chatId, messageId: message.id },
+        {
+          onSuccess: () => toast.success("Message deleted"),
+          onError: () => toast.error("Failed to delete message"),
+        }
+      );
     };
 
     return (
@@ -89,7 +95,7 @@ export const MessageBubble = memo(
               <Button
                 variant="ghost"
                 size="icon"
-                className="size-7 text-muted-foreground hover:text-foreground"
+                className={ACTION_BUTTON}
                 onClick={handleCopy}
                 aria-label="Copy message"
               >
@@ -105,7 +111,7 @@ export const MessageBubble = memo(
                   <Button
                     variant="ghost"
                     size="icon"
-                    className="size-7 text-muted-foreground hover:text-foreground"
+                    className={ACTION_BUTTON}
                     aria-label="More options"
                   >
                     <MoreHorizontal className="size-3.5" />
@@ -124,7 +130,9 @@ export const MessageBubble = memo(
               </DropdownMenu>
             </div>
 
-            {!isUser && message.tokenCount && (
+            {/* `!!`, not a bare `&&`: a reported count of 0 is falsy but still
+                renders as the text "0" when it is the operand React receives. */}
+            {!isUser && !!message.tokenCount && (
               <span className="text-xs text-muted-foreground opacity-0 transition-opacity group-hover/message:opacity-100">
                 {message.tokenCount.toLocaleString()} tokens
               </span>

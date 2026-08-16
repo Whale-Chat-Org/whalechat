@@ -1,21 +1,43 @@
 "use client";
 
-import { useState, useRef, useEffect, useMemo } from "react";
+import { useState, useRef, useEffect } from "react";
 import { Loader2, MessageSquarePlus, Plus } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { SidebarTrigger } from "@/components/ui/sidebar";
 import { SendIcon } from "./SendIcon";
 import { ModelPicker } from "./ModelPicker";
+import {
+  useAddMessage,
+  useChats,
+  useMessages,
+  useUpdateChat,
+} from "@/hooks/use-chats";
 import { useChatStore } from "@/store/chatStore";
 import { MessageBubble } from "./MessageBubble";
 import { sendChatMessage } from "@/lib/api";
 import { toast } from "sonner";
 import { cn, deriveChatName } from "@/lib/utils";
 import { NEW_CHAT_NAME } from "@/lib/deepseek";
+import type { ChatSession, Message } from "@/types/chat";
 
 /** One rail width shared by header, message column and composer so they align. */
 const RAIL = "mx-auto w-full max-w-3xl px-4 sm:px-6";
+
+/**
+ * Ceiling for the auto-growing composer, in pixels.
+ *
+ * @remarks Must stay in step with `max-h-[200px]` on the textarea below. Tailwind
+ * extracts class names statically, so the class cannot be built from this value —
+ * past the cap the element scrolls instead of growing, and the two have to agree
+ * on where that is.
+ */
+const MAX_COMPOSER_HEIGHT = 200;
+
+// Stable empty arrays. An inline `= []` default would be a fresh reference on
+// every render, which would re-run the scroll effect below each time.
+const NO_MESSAGES: Message[] = [];
+const NO_CHATS: ChatSession[] = [];
 
 interface ChatWindowProps {
   /** Invoked by the empty state's "New chat" button. */
@@ -24,39 +46,32 @@ interface ChatWindowProps {
 
 /** The conversation pane: header, message list and composer. */
 export function ChatWindow({ onNewChat }: ChatWindowProps) {
-  const { currentChatId, messages, chats, addMessage, updateChat } =
-    useChatStore();
+  const currentChatId = useChatStore((state) => state.currentChatId);
+  const { data: chats = NO_CHATS } = useChats();
+  const { data: currentMessages = NO_MESSAGES } = useMessages(currentChatId);
+  const { mutateAsync: addMessage } = useAddMessage();
+  const { mutateAsync: updateChat } = useUpdateChat();
+
   const [input, setInput] = useState("");
   const [isLoading, setIsLoading] = useState(false);
   const scrollRef = useRef<HTMLDivElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
 
   const currentChat = chats.find((c) => c.id === currentChatId);
-  // Memoized so the empty-array fallback doesn't produce a new reference each
-  // render, which would re-run the scroll effect below every time.
-  const currentMessages = useMemo(
-    () => (currentChatId ? messages[currentChatId] ?? [] : []),
-    [currentChatId, messages]
-  );
 
   useEffect(() => {
-    if (scrollRef.current) {
-      const scrollElement = scrollRef.current;
-      scrollElement.scrollTo({
-        top: scrollElement.scrollHeight,
-        behavior: "smooth",
-      });
-    }
+    const list = scrollRef.current;
+    list?.scrollTo({ top: list.scrollHeight, behavior: "smooth" });
   }, [currentMessages]);
 
+  // Grow the composer with its content, up to the same cap the class list sets.
   useEffect(() => {
-    if (textareaRef.current) {
-      textareaRef.current.style.height = "auto";
-      textareaRef.current.style.height = `${Math.min(
-        textareaRef.current.scrollHeight,
-        200
-      )}px`;
-    }
+    const textarea = textareaRef.current;
+    if (!textarea) return;
+
+    textarea.style.height = "auto";
+    const height = Math.min(textarea.scrollHeight, MAX_COMPOSER_HEIGHT);
+    textarea.style.height = `${height}px`;
   }, [input]);
 
   const handleSend = async () => {
@@ -71,18 +86,20 @@ export function ChatWindow({ onNewChat }: ChatWindowProps) {
     try {
       await addMessage({
         chatId: currentChatId,
-        role: "user",
-        content: userMessage,
+        message: { role: "user", content: userMessage },
       });
 
       // Title the chat from its opening message. Guarded on the message count
       // rather than the name alone, so a deliberate rename is never overwritten.
       if (isFirstMessage && currentChat.name === NEW_CHAT_NAME) {
-        await updateChat(currentChatId, {
-          name: deriveChatName(userMessage),
+        await updateChat({
+          chatId: currentChatId,
+          updates: { name: deriveChatName(userMessage) },
         });
       }
 
+      // `currentMessages` is the history from before the turn above, which is
+      // exactly what the request wants — sendChatMessage appends userMessage.
       const response = await sendChatMessage(
         currentChat,
         userMessage,
@@ -91,9 +108,11 @@ export function ChatWindow({ onNewChat }: ChatWindowProps) {
 
       await addMessage({
         chatId: currentChatId,
-        role: "assistant",
-        content: response.content,
-        tokenCount: response.tokenCount,
+        message: {
+          role: "assistant",
+          content: response.content,
+          tokenCount: response.tokenCount,
+        },
       });
     } catch (error) {
       toast.error(

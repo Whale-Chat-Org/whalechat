@@ -10,7 +10,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { DEEPSEEK_MODELS } from "@/lib/deepseek";
-import { useChatStore } from "@/store/chatStore";
+import { useUpdateChat } from "@/hooks/use-chats";
 import { toast } from "sonner";
 
 interface ModelPickerProps {
@@ -26,16 +26,17 @@ interface ModelPickerProps {
  * conversation and takes effect on the next message sent.
  */
 export function ModelPicker({ chatId, model }: ModelPickerProps) {
-  const { updateChat } = useChatStore();
+  const { mutate: updateChat } = useUpdateChat();
 
-  const handleChange = async (next: string) => {
+  const handleChange = (next: string) => {
     if (next === model) return;
-    try {
-      await updateChat(chatId, { model: next });
-      toast.success(`Switched to ${next}`);
-    } catch {
-      toast.error("Failed to switch model");
-    }
+    updateChat(
+      { chatId, updates: { model: next } },
+      {
+        onSuccess: () => toast.success(`Switched to ${next}`),
+        onError: () => toast.error("Failed to switch model"),
+      }
+    );
   };
 
   return (

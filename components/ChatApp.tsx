@@ -1,15 +1,10 @@
 "use client";
 
-import { useEffect } from "react";
 import { SidebarInset, SidebarProvider } from "@/components/ui/sidebar";
 import { AppSidebar } from "@/components/AppSidebar";
 import { ChatWindow } from "@/components/ChatWindow";
+import { useCreateChat } from "@/hooks/use-chats";
 import { useChatStore } from "@/store/chatStore";
-import {
-  DEFAULT_MODEL,
-  DEFAULT_SYSTEM_PROMPT,
-  NEW_CHAT_NAME,
-} from "@/lib/deepseek";
 import { toast } from "sonner";
 
 interface ChatAppProps {
@@ -19,24 +14,16 @@ interface ChatAppProps {
 
 /** The chat application shell: sidebar and conversation pane. */
 export function ChatApp({ isAdmin }: ChatAppProps) {
-  const { loadChats, createChat } = useChatStore();
+  const setCurrentChat = useChatStore((state) => state.setCurrentChat);
+  const { mutate: createChat } = useCreateChat();
 
-  useEffect(() => {
-    loadChats();
-  }, [loadChats]);
-
-  // No dialog: a new chat starts immediately with the defaults and renames
-  // itself from the first message (see ChatWindow).
-  const handleNewChat = async () => {
-    try {
-      await createChat({
-        name: NEW_CHAT_NAME,
-        model: DEFAULT_MODEL,
-        systemPrompt: DEFAULT_SYSTEM_PROMPT,
-      });
-    } catch {
-      toast.error("Failed to create chat");
-    }
+  // No dialog: a new chat starts immediately on the server's defaults and
+  // renames itself from the first message (see ChatWindow).
+  const handleNewChat = () => {
+    createChat(undefined, {
+      onSuccess: (chat) => setCurrentChat(chat.id),
+      onError: () => toast.error("Failed to create chat"),
+    });
   };
 
   return (

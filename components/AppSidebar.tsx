@@ -12,6 +12,8 @@ import {
   useSidebar,
 } from "@/components/ui/sidebar";
 import { Button } from "@/components/ui/button";
+import { Spinner } from "@/components/ui/spinner";
+import { useChats } from "@/hooks/use-chats";
 import { useChatStore } from "@/store/chatStore";
 import { ChatListItem } from "./ChatListItem";
 import { UserButton } from "./auth/user/user-button";
@@ -24,7 +26,9 @@ interface AppSidebarProps {
 
 /** Chat list, new-chat action and the signed-in user, in shadcn's collapsible sidebar. */
 export function AppSidebar({ onNewChat, isAdmin }: AppSidebarProps) {
-  const { chats, currentChatId, setCurrentChat } = useChatStore();
+  const currentChatId = useChatStore((state) => state.currentChatId);
+  const setCurrentChat = useChatStore((state) => state.setCurrentChat);
+  const { data: chats = [], isPending } = useChats();
   const { isMobile, setOpenMobile } = useSidebar();
 
   // On mobile the sidebar is an overlay drawer, so acting on it should dismiss
@@ -70,7 +74,13 @@ export function AppSidebar({ onNewChat, isAdmin }: AppSidebarProps) {
               ))}
             </SidebarMenu>
 
-            {chats.length === 0 && (
+            {isPending && (
+              <div className="flex justify-center py-10">
+                <Spinner />
+              </div>
+            )}
+
+            {!isPending && chats.length === 0 && (
               <div className="px-2 py-10 text-center text-sm text-muted-foreground group-data-[collapsible=icon]:hidden">
                 <MessageSquare className="mx-auto mb-2 size-6 opacity-40" />
                 <p>No chats yet</p>

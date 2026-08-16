@@ -7,16 +7,16 @@ flowchart TD
     trigger([push / PR to main]) --> test
 
     test["<b>test</b><br/>lint · tsc --noEmit · vitest"] --> scan
-    scan["<b>scan</b><br/>npm audit · gitleaks history"] --> build
-    build["<b>build</b><br/>docker build"] --> trivy
+    scan["<b>scan source</b><br/>npm audit · gitleaks history"] --> build
+    build["<b>build image</b><br/>docker build → tarball artifact"] --> trivy
 
-    trivy{"trivy image<br/>fixable HIGH/CRITICAL?"}
+    trivy{"<b>scan image</b><br/>fixable HIGH/CRITICAL?"}
     trivy -- found --> blocked["✗ fail<br/>nothing pushed"]
     trivy -- clean --> gate
 
     gate{"ACR_LOGIN_SERVER set<br/>and not a PR?"}
     gate -- no --> parked["◻ built and scanned,<br/>not pushed"]
-    gate -- yes --> acr["push to ACR<br/>:sha and :latest"]
+    gate -- yes --> acr["<b>push to ACR</b><br/>:sha and :latest"]
 
     acr --> approval{{"manual approval<br/>production environment"}}
     approval --> migrate["prisma migrate deploy"]
@@ -32,13 +32,20 @@ flowchart TD
     class trivy,gate,approval gateStyle
 ```
 
-| Stage | Needs Azure? |
-|---|---|
-| `test` — lint, typecheck, vitest | no |
-| `scan` — `npm audit --audit-level=high`, gitleaks over full history | no |
-| `build` — docker build, then Trivy scans the image | no |
-| ↳ push steps — tag and push to ACR, `main` only | **yes** |
-| `deploy` — migrate, then App Service, behind approval | **yes** |
+Each stage is its own job:
+
+| Job | Does | Needs Azure? |
+|---|---|---|
+| `test` | lint, typecheck, vitest | no |
+| `scan` | `npm audit --audit-level=high`, gitleaks over full history | no |
+| `build` | docker build, exported as a tarball artifact | no |
+| `scan-image` | Trivy reads that tarball directly — no daemon | no |
+| `push` | loads the tarball, tags and pushes to ACR, `main` only | **yes** |
+| `deploy` | migrate, then App Service, behind approval | **yes** |
+
+The image moves between jobs as an artifact, because jobs run on separate
+runners. That is an upload and two downloads per run — the cost of the stages
+being genuinely separate rather than steps inside one job.
 
 **Azure is optional to start with.** Everything through the image scan runs
 without an account; only the push steps and `deploy` are gated on
@@ -50,13 +57,14 @@ is worth catching before merge. The push steps never run on a PR.
 
 ## Deliberate choices that look like mistakes
 
-- **Build and push are one job.** Jobs run on separate runners, so splitting them
-  would mean shuttling a multi-hundred-megabyte image through an artifact. The
-  Trivy step sits between the build and the push, which is the ordering that
-  actually matters.
-- **The image is tagged locally first** (`whalechat:<sha>`), and only re-tagged for
-  the registry when there is one. The ACR name may not exist yet, and `//:sha` is
-  not a valid reference.
+- **The image is tagged locally first** (`whalechat:<sha>`), and only re-tagged
+  for the registry in `push`. The ACR name may not exist yet, and `//:sha` is not
+  a valid reference.
+- **`.trivyignore.yaml` waives seven CVEs**, all in dependencies Next vendors
+  into `next/dist/compiled/` — not ours, and unfixable by updating ours, since
+  16.3.1 is the latest release. Each entry is scoped by `paths` to Next's copy,
+  so the same CVE in a real dependency still fails the scan. The Alpine base
+  layer scans clean; this is entirely about the Node layer.
 - **`npm audit --audit-level=high`, not `moderate`.** The tree carries one
   moderate advisory, in `@better-auth/oauth-provider`, which npm installs as a
   non-optional peer of `@better-auth-ui/react`. That plugin is not enabled in

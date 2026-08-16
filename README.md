@@ -203,21 +203,22 @@ are where it stops early; the hexagon is the human gate.
 |---|---|---|
 | `test` | `npm ci`, `next typegen`, lint, `tsc --noEmit`, `vitest run` | no |
 | `scan` | `npm audit --audit-level=high`, Gitleaks over the full history | no |
-| `build` | Builds the image, then Trivy-scans it | no |
-| ↳ push steps | Tags and pushes to ACR — `main` only | **yes** |
+| `build` | Builds the image and exports it as an artifact | no |
+| `scan-image` | Trivy scans that artifact | no |
+| `push` | Loads it, tags and pushes to ACR — `main` only | **yes** |
 | `deploy` | Applies migrations, deploys to App Service — behind approval | **yes** |
 
-The image is Trivy-scanned *before* the push steps run, so a vulnerable build
-never reaches the registry.
+The image is Trivy-scanned in its own job *before* `push` runs, so a vulnerable
+build never reaches the registry.
 
-**Azure is optional to start with.** Everything up to and including the image
-scan runs without an Azure account — only the push steps and `deploy` are gated
-on `ACR_LOGIN_SERVER` being set. Until you set it you get a fully green
+**Azure is optional to start with.** Everything up to and including `scan-image`
+runs without an Azure account — only `push` and `deploy` are gated on
+`ACR_LOGIN_SERVER` being set. Until you set it you get a fully green
 pipeline that builds and scans the image and then stops, with a notice saying
 so. Setting that one variable is what switches shipping on.
 
-`build` runs on pull requests too: a broken Dockerfile or a newly published CVE
-is worth catching before merge. The push steps never run on a PR.
+`build` and `scan-image` run on pull requests too: a broken Dockerfile or a newly
+published CVE is worth catching before merge. `push` never runs on a PR.
 
 Action versions are pinned to a major (`@v7`), which picks up patches
 automatically, and [`dependabot.yml`](.github/dependabot.yml) opens a weekly PR

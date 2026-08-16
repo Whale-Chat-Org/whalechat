@@ -1,5 +1,6 @@
 import { ensureSession } from "@better-auth-ui/react/server";
 import { headers } from "next/headers";
+import { BUILTIN_ROLES, hasRoleKey } from "@/lib/access";
 import { auth } from "@/lib/auth";
 import { getQueryClient } from "@/lib/query-client";
 
@@ -20,7 +21,18 @@ export async function getServerSession() {
   return { queryClient, session };
 }
 
-/** True when the session belongs to an administrator. */
+/**
+ * True when the session carries the built-in `admin` role.
+ *
+ * @remarks Answers "would Better Auth's admin plugin let you through", which is
+ * a narrower question than "may you do X" — the plugin authorizes its own
+ * endpoints against this role key and knows nothing about the roles in
+ * `auth_role`. For anything else, ask `can()` from `lib/rbac/dal.ts`.
+ *
+ * Reads the mirror through `hasRoleKey` rather than comparing it. A user holding
+ * two roles has `"admin,support"` in that column, and `=== "admin"` says they
+ * are not an administrator.
+ */
 export function isAdmin(session: { user: { role?: string | null } } | null) {
-  return session?.user.role === "admin";
+  return hasRoleKey(session?.user.role, BUILTIN_ROLES.admin);
 }

@@ -16,6 +16,13 @@ const nextConfig: NextConfig = {
   },
   experimental: {
     optimizePackageImports: ["lucide-react"],
+    // Turns on `forbidden()` and `unauthorized()` and the `forbidden.tsx` /
+    // `unauthorized.tsx` conventions. Still experimental in 16.3.1 and
+    // default-off, so it has to be asked for by name.
+    //
+    // Without it those calls throw an interrupt nothing renders, so the RBAC
+    // guards in `lib/rbac/dal.ts` depend on this flag staying on.
+    authInterrupts: true,
   },
   turbopack: {
     // Pin the workspace root. Without this, a stray package-lock.json in a

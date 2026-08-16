@@ -20,11 +20,12 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { adminUsersKey, type AdminAction, type AdminUser } from "@/lib/admin";
-import { authClient } from "@/lib/auth-client";
-
-/** One page is plenty for a portal this size; search covers the rest. */
-const PAGE_SIZE = 100;
+import {
+  adminRolesKey,
+  adminUsersKey,
+  fetchAdminUsers,
+  type AdminAction,
+} from "@/lib/admin";
 
 /** The users table: search, the create dialog, and one row per account. */
 export function AdminUsers({ currentUserId }: { currentUserId: string }) {
@@ -33,13 +34,7 @@ export function AdminUsers({ currentUserId }: { currentUserId: string }) {
 
   const { data, isPending, error } = useQuery({
     queryKey: adminUsersKey,
-    queryFn: async () => {
-      const { data, error } = await authClient.admin.listUsers({
-        query: { limit: PAGE_SIZE, sortBy: "createdAt", sortDirection: "desc" },
-      });
-      if (error) throw new Error(error.message);
-      return (data?.users ?? []) as AdminUser[];
-    },
+    queryFn: fetchAdminUsers,
   });
 
   // Filtering client-side keeps typing instant. With a single page of users
@@ -59,13 +54,13 @@ export function AdminUsers({ currentUserId }: { currentUserId: string }) {
    * refetches once it succeeds.
    */
   const { mutate: run, isPending: isMutating } = useMutation({
-    mutationFn: async ({ action }: AdminAction) => {
-      const { error } = await action();
-      if (error) throw new Error(error.message ?? "Something went wrong");
-    },
+    mutationFn: async ({ action }: AdminAction) => action(),
     onSuccess: (_result, { success }) => {
       toast.success(success);
       queryClient.invalidateQueries({ queryKey: adminUsersKey });
+      // Role assignments move a role's holder count, so the roles screen is
+      // stale too even when this action never touched a role directly.
+      queryClient.invalidateQueries({ queryKey: adminRolesKey });
     },
     onError: (error: Error) => toast.error(error.message),
   });
@@ -110,7 +105,7 @@ export function AdminUsers({ currentUserId }: { currentUserId: string }) {
             <TableRow>
               <TableHead>User</TableHead>
               <TableHead className="w-32">Status</TableHead>
-              <TableHead className="w-32">Role</TableHead>
+              <TableHead className="w-48">Roles</TableHead>
               <TableHead className="w-12" />
             </TableRow>
           </TableHeader>

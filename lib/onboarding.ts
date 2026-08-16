@@ -1,6 +1,6 @@
 import { redirect } from "next/navigation";
 import { connection } from "next/server";
-import { ONBOARDING_PENDING_REASON } from "./access";
+import { BUILTIN_ROLES, ONBOARDING_PENDING_REASON } from "./access";
 import { prisma } from "./prisma";
 import { redis } from "./redis";
 
@@ -43,8 +43,12 @@ export async function getOnboardingState(): Promise<OnboardingState> {
 
   if (await redis.get(ONBOARDED_KEY)) return { step: "done" };
 
+  // Joined through `UserRole` rather than read off `User.role`. That column is
+  // a mirror holding every role key a user has, so `role = 'admin'` misses an
+  // administrator who also holds a second role — and the join is the source of
+  // truth anyway.
   const admins = await prisma.user.findMany({
-    where: { role: "admin" },
+    where: { roles: { some: { role: { key: BUILTIN_ROLES.admin } } } },
     select: { id: true, email: true, banned: true, banReason: true },
   });
 
@@ -65,6 +69,13 @@ export async function getOnboardingState(): Promise<OnboardingState> {
   // available on a database that has been used, or "ban the last admin" becomes
   // a way to take the instance over. Recovery is a manual UPDATE in psql.
   if (admins.length > 0) return { step: "done" };
+
+  // Nor on a database that has users but no administrator at all. Roles are
+  // revocable now, so "take the admin role away from everyone" became a second
+  // route to the takeover the branch above closes. Nobody can sign up before
+  // onboarding finishes — `app/auth/[path]/page.tsx` calls `requireOnboarded()`
+  // too — so a populated database provably means setup already happened.
+  if ((await prisma.user.count()) > 0) return { step: "done" };
 
   return { step: "claim" };
 }

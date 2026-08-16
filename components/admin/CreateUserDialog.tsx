@@ -1,6 +1,6 @@
 "use client";
 
-import { useMutation, useQueryClient } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { UserPlus } from "lucide-react";
 import { useState } from "react";
 import { toast } from "sonner";
@@ -15,58 +15,56 @@ import {
   DialogTrigger,
 } from "@/components/ui/dialog";
 import { Field, FieldGroup, FieldLabel } from "@/components/ui/field";
+import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
 import { Spinner } from "@/components/ui/spinner";
-import type { Role } from "@/lib/access";
-import { adminUsersKey } from "@/lib/admin";
-import { authClient } from "@/lib/auth-client";
+import { BUILTIN_ROLES } from "@/lib/access";
+import {
+  adminRolesKey,
+  adminUsersKey,
+  fetchAdminRoles,
+  request,
+} from "@/lib/admin";
 
 /**
  * Add a user without making them queue.
  *
- * @remarks `admin.createUser` writes through the same database hook that bans
- * every new account, so the account has to be approved immediately afterwards —
- * an administrator typing the address in *is* the approval. The email counts as
- * confirmed for the same reason.
+ * @remarks Creation still writes through the database hook that bans every new
+ * account, so `POST /api/admin/users` lifts the ban immediately afterwards — an
+ * administrator typing the address in *is* the approval. The hook cannot tell
+ * the two apart, which is why the ban is undone rather than skipped.
+ *
+ * Roles are checkboxes, not a `<Select>`: a user may hold several, and the
+ * options come from the database rather than from a hard-coded pair.
  */
 export function CreateUserDialog() {
   const [open, setOpen] = useState(false);
-  const [role, setRole] = useState<Role>("user");
+  const [roleKeys, setRoleKeys] = useState<string[]>([BUILTIN_ROLES.user]);
   const queryClient = useQueryClient();
 
+  const { data: roles } = useQuery({
+    queryKey: adminRolesKey,
+    queryFn: fetchAdminRoles,
+    enabled: open,
+  });
+
   const { mutate: create, isPending } = useMutation({
-    mutationFn: async (form: FormData) => {
-      const { data, error } = await authClient.admin.createUser({
-        email: String(form.get("email")),
-        password: String(form.get("password")),
-        name: String(form.get("name")),
-        role,
-        data: { emailVerified: true },
-      });
-      if (error) throw new Error(error.message ?? "Could not create the user");
-
-      const userId = data?.user?.id;
-      if (!userId) return;
-
-      const { error: unbanError } = await authClient.admin.unbanUser({ userId });
-      if (unbanError) {
-        throw new Error(
-          `Created, but could not approve automatically: ${unbanError.message}`
-        );
-      }
-    },
+    mutationFn: (form: FormData) =>
+      request("/api/admin/users", {
+        method: "POST",
+        body: JSON.stringify({
+          name: String(form.get("name")),
+          email: String(form.get("email")),
+          password: String(form.get("password")),
+          roleKeys,
+        }),
+      }),
     onSuccess: () => {
       toast.success("User created");
       queryClient.invalidateQueries({ queryKey: adminUsersKey });
+      queryClient.invalidateQueries({ queryKey: adminRolesKey });
       setOpen(false);
-      setRole("user");
+      setRoleKeys([BUILTIN_ROLES.user]);
     },
     onError: (error: Error) => toast.error(error.message),
   });
@@ -124,19 +122,27 @@ export function CreateUserDialog() {
             </Field>
 
             <Field>
-              <FieldLabel htmlFor="new-user-role">Role</FieldLabel>
-              <Select
-                value={role}
-                onValueChange={(value) => setRole(value as Role)}
-              >
-                <SelectTrigger id="new-user-role">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="user">User</SelectItem>
-                  <SelectItem value="admin">Admin</SelectItem>
-                </SelectContent>
-              </Select>
+              <FieldLabel>Roles</FieldLabel>
+              <div className="space-y-2">
+                {(roles ?? []).map((entry) => (
+                  <label
+                    key={entry.key}
+                    className="flex cursor-pointer items-center gap-2 text-sm"
+                  >
+                    <Checkbox
+                      checked={roleKeys.includes(entry.key)}
+                      onCheckedChange={(value) =>
+                        setRoleKeys((current) =>
+                          value === true
+                            ? [...current, entry.key]
+                            : current.filter((key) => key !== entry.key)
+                        )
+                      }
+                    />
+                    {entry.name}
+                  </label>
+                ))}
+              </div>
             </Field>
           </FieldGroup>
 

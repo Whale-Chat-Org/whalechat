@@ -4,7 +4,8 @@ import { ChatApp } from "@/components/ChatApp";
 import { chatsKey } from "@/lib/chat-api";
 import { listChats } from "@/lib/chats";
 import { requireOnboarded } from "@/lib/onboarding";
-import { getServerSession, isAdmin } from "@/lib/session";
+import { can } from "@/lib/rbac/dal";
+import { getServerSession } from "@/lib/session";
 
 /**
  * The chat route, gated behind sign-in.
@@ -30,7 +31,7 @@ export default async function Home() {
 
   return (
     <HydrationBoundary state={dehydrate(queryClient)}>
-      <ChatApp isAdmin={isAdmin(session)} />
+      <ChatApp canAdminister={await can("user:list")} />
     </HydrationBoundary>
   );
 }

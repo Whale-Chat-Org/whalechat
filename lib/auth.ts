@@ -8,6 +8,7 @@ import {
 } from "./access";
 import { actionEmail, sendMail } from "./email";
 import { prisma } from "./prisma";
+import { adoptRolesFromMirror } from "./rbac/roles";
 import { redis } from "./redis";
 
 const APP_URL = process.env.NEXT_PUBLIC_APP_URL ?? "http://localhost:3000";
@@ -94,6 +95,31 @@ export const auth = betterAuth({
             banReason: user.banReason ?? PENDING_APPROVAL_REASON,
           },
         }),
+
+        /**
+         * Turn the role the plugin just stamped into `UserRole` rows.
+         *
+         * @remarks Creation is the one moment `User.role` leads and the join
+         * table follows — everywhere else the direction is the other way round.
+         * The plugin writes `defaultRole` for a sign-up and the explicit value
+         * for `auth.api.createUser({ role: "admin" })` in
+         * `app/onboarding/actions.ts`, and without this the first administrator
+         * would have a mirror with nothing behind it. The next mirror rebuild
+         * would then read zero rows and quietly demote them, on an instance with
+         * no second administrator to undo it.
+         *
+         * Safe to reach Postgres directly: Better Auth queues `after` hooks
+         * through `queueAfterTransactionHook`, so the user row is committed by
+         * the time this runs.
+         */
+        after: async (user) => {
+          // `role` is typed `unknown` here — the hook sees the raw record, and
+          // the column belongs to a plugin rather than to the core user shape.
+          await adoptRolesFromMirror(
+            user.id,
+            typeof user.role === "string" ? user.role : null
+          );
+        },
       },
     },
   },

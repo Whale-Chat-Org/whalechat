@@ -5,9 +5,10 @@
 #   ./start_local.sh
 #
 # Stops every running container, brings this project's Postgres and Redis up,
-# applies migrations, then hands over to `next dev`. There is no seed step — the
-# first administrator is claimed at /onboarding. Safe to run repeatedly; it never
-# deletes a volume or an image.
+# applies migrations, seeds the permission catalogue, then hands over to
+# `next dev`. The seed creates no accounts — the first administrator is still
+# claimed at /onboarding. Safe to run repeatedly; it never deletes a volume or an
+# image.
 set -euo pipefail
 
 cd "$(dirname "$0")"
@@ -38,6 +39,11 @@ docker compose up -d --wait --remove-orphans
 
 step "Applying migrations"
 npm run db:migrate
+
+# Permissions are defined in code and mirrored into the database, so a migration
+# alone leaves the new ones ungrantable. Idempotent, so re-running costs nothing.
+step "Seeding permissions and built-in roles"
+npm run db:seed
 
 step "Starting the dev server"
 echo "  app  http://localhost:3000"

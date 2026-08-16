@@ -1,4 +1,4 @@
-// Two halves, and the distinction matters when editing them.
+// Three halves by now, and the distinction matters when editing them.
 //
 // User / Session / Account / Verification are Better Auth's, written by hand
 // rather than by `@better-auth/cli generate` so the admin plugin's columns and
@@ -6,7 +6,11 @@
 // `lib/auth.ts`: adding a Better Auth plugin usually adds fields here too.
 // `npx @better-auth/cli generate` will tell you what is missing.
 //
-// Chat / Message are ours, and free of that constraint — see the comment above
+// AuthRole / AuthPermission / RolePermission / UserRole are the RBAC module —
+// ours, but coupled to Better Auth through the `User.role` mirror. Read the
+// comment on that column before touching any of them.
+//
+// Chat / Message are ours, and free of both constraints — see the comment above
 // them.
 
 generator client {
@@ -19,18 +23,32 @@ datasource db {
 }
 
 model User {
-  id            String    @id
+  id            String   @id
   name          String
-  email         String    @unique
-  emailVerified Boolean   @default(false)
+  email         String   @unique
+  emailVerified Boolean  @default(false)
   image         String?
-  createdAt     DateTime  @default(now())
-  updatedAt     DateTime  @updatedAt
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
 
   // --- admin plugin ---
-  // `role` is "user" or "admin". `banned` is the portal's access gate: every
-  // self-registered account starts banned with banReason = "Awaiting
-  // administrator approval" until an admin clears it (see lib/auth.ts).
+  // `role` is a DENORMALIZED MIRROR of this user's `UserRole` rows: their role
+  // keys, sorted, comma-joined ("admin", or "admin,support"). `UserRole` is the
+  // source of truth; only `lib/rbac/roles.ts` may write this column.
+  //
+  // It exists because Better Auth's admin plugin reads it directly to authorize
+  // its own endpoints — listUsers, setRole, banUser, removeUser, impersonateUser
+  // — which is everything the admin portal runs on. Dropping it would take the
+  // portal with it.
+  //
+  // Never compare it with `=`. A user holding two roles has "admin,support" in
+  // here, and `role = 'admin'` misses them. Use `hasRoleKey` (lib/access.ts) in
+  // TypeScript, and join through `UserRole` in Prisma.
+  //
+  // `banned` is the portal's access gate: every self-registered account starts
+  // banned with banReason = "Awaiting administrator approval" until an admin
+  // clears it (see lib/auth.ts). Unrelated to roles, and still authoritative —
+  // a banned administrator is still banned.
   role       String?
   banned     Boolean?  @default(false)
   banReason  String?
@@ -39,6 +57,7 @@ model User {
   sessions Session[]
   accounts Account[]
   chats    Chat[]
+  roles    UserRole[]
 
   @@map("user")
 }
@@ -94,6 +113,97 @@ model Verification {
   @@map("verification")
 }
 
+// --- RBAC ---
+// Permissions are code-owned: `lib/rbac/statements.ts` is the closed set, and
+// `prisma/seed.ts` reconciles AuthPermission against it. Roles are data, so an
+// administrator can compose new ones without a deploy.
+//
+// Note the `Auth` prefix. `Role` is already taken by the message-authorship enum
+// at the bottom of this file, which maps to the table named `role`.
+
+model AuthRole {
+  id          String   @id @default(cuid())
+  // Stable identifier: what `User.role` mirrors and what code compares against.
+  // Renaming one means rewriting every mirror, so `system` roles refuse it.
+  key         String   @unique
+  name        String
+  description String?
+  // Built-in and undeletable. Guards "admin" and "user", without which the
+  // instance becomes unadministrable and Better Auth's own endpoints stop
+  // authorizing anyone.
+  system      Boolean  @default(false)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  permissions RolePermission[]
+  users       UserRole[]
+
+  @@map("auth_role")
+}
+
+model AuthPermission {
+  id       String @id @default(cuid())
+  // "user:list" — matches `Permission` in lib/rbac/statements.ts exactly.
+  key      String @unique
+  resource String
+  action   String
+
+  roles RolePermission[]
+
+  @@index([resource])
+  @@map("auth_permission")
+}
+
+model RolePermission {
+  roleId       String
+  permissionId String
+
+  role       AuthRole       @relation(fields: [roleId], references: [id], onDelete: Cascade)
+  permission AuthPermission @relation(fields: [permissionId], references: [id], onDelete: Cascade)
+
+  @@id([roleId, permissionId])
+  @@index([permissionId])
+  @@map("role_permission")
+}
+
+model UserRole {
+  userId String
+  roleId String
+
+  assignedAt DateTime @default(now())
+  // Who granted this, for the audit trail. Deliberately not a foreign key: the
+  // grant outlives the granter, and cascading a deleted administrator's account
+  // into everyone else's role rows would be a catastrophe dressed as tidiness.
+  assignedBy String?
+
+  user User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  role AuthRole @relation(fields: [roleId], references: [id], onDelete: Cascade)
+
+  @@id([userId, roleId])
+  // Answers "who holds this role?" — the last-administrator check before a
+  // revoke, and the mirror rebuild after a role is deleted.
+  @@index([roleId])
+  @@map("user_role")
+}
+
+// One row, bumped inside the transaction of every role, grant and assignment
+// write. It namespaces the Redis permission cache, so a single increment
+// invalidates every cached permission set at once — no fan-out, and correct
+// across app instances.
+//
+// It lives in Postgres rather than being a Redis INCR because Redis here runs
+// without persistence. A counter that resets to zero would let cache keys from
+// an earlier epoch be read again as if current, resurrecting a revoked grant.
+// A monotonic row cannot go backwards.
+model AccessVersion {
+  id      Int    @id @default(1)
+  version BigInt @default(1)
+
+  updatedAt DateTime @updatedAt
+
+  @@map("access_version")
+}
+
 // --- Chat ---
 // Unlike the four tables above, these are ours rather than Better Auth's, so
 // they use `@default(cuid())` for ids and a real enum where the values are
@@ -131,8 +241,9 @@ model Message {
   @@map("message")
 }
 
-// `User.role` is a String because Better Auth owns that column. This one is
-// ours, so Postgres enforces it. `system` is never persisted — the system turn
+// Not to be confused with `AuthRole` above. This is who wrote a message, and it
+// is an enum because the values are fixed and ours — `User.role` is a String
+// because Better Auth owns that column. `system` is never persisted — the system turn
 // is synthesized from `Chat.systemPrompt` in `lib/api.ts` — but it stays here so
 // the enum matches `ChatContextMessage`.
 enum Role {

@@ -21,11 +21,11 @@ import { UserButton } from "./auth/user/user-button";
 interface AppSidebarProps {
   onNewChat: () => void;
   /** Adds the admin portal to the user menu. Cosmetic — `/admin` gates itself. */
-  isAdmin: boolean;
+  canAdminister: boolean;
 }
 
 /** Chat list, new-chat action and the signed-in user, in shadcn's collapsible sidebar. */
-export function AppSidebar({ onNewChat, isAdmin }: AppSidebarProps) {
+export function AppSidebar({ onNewChat, canAdminister }: AppSidebarProps) {
   const currentChatId = useChatStore((state) => state.currentChatId);
   const setCurrentChat = useChatStore((state) => state.setCurrentChat);
   const { data: chats = [], isPending } = useChats();
@@ -96,7 +96,7 @@ export function AppSidebar({ onNewChat, isAdmin }: AppSidebarProps) {
             className="h-auto w-full justify-start px-2 py-1.5 group-data-[collapsible=icon]:justify-center group-data-[collapsible=icon]:px-0"
             align="start"
             links={
-              isAdmin
+              canAdminister
                 ? [
                     {
                       label: "Admin portal",

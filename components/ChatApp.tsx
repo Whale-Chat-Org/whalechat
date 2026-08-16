@@ -9,11 +9,12 @@ import { toast } from "sonner";
 
 interface ChatAppProps {
   /** Whether to offer the admin portal in the sidebar's user menu. */
-  isAdmin: boolean;
+  /** Shows the admin link. Cosmetic — `/admin` gates itself. */
+  canAdminister: boolean;
 }
 
 /** The chat application shell: sidebar and conversation pane. */
-export function ChatApp({ isAdmin }: ChatAppProps) {
+export function ChatApp({ canAdminister }: ChatAppProps) {
   const setCurrentChat = useChatStore((state) => state.setCurrentChat);
   const { mutate: createChat } = useCreateChat();
 
@@ -28,7 +29,7 @@ export function ChatApp({ isAdmin }: ChatAppProps) {
 
   return (
     <SidebarProvider>
-      <AppSidebar onNewChat={handleNewChat} isAdmin={isAdmin} />
+      <AppSidebar onNewChat={handleNewChat} canAdminister={canAdminister} />
 
       <SidebarInset className="min-w-0">
         <ChatWindow onNewChat={handleNewChat} />

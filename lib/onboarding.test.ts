@@ -2,12 +2,15 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { ONBOARDING_PENDING_REASON, REVOKED_REASON } from "./access";
 
 const findMany = vi.fn();
+const count = vi.fn();
 const redisGet = vi.fn();
 const redisSet = vi.fn();
 const redisDel = vi.fn();
 const redirect = vi.fn();
 
-vi.mock("./prisma", () => ({ prisma: { user: { findMany: () => findMany() } } }));
+vi.mock("./prisma", () => ({
+  prisma: { user: { findMany: () => findMany(), count: () => count() } },
+}));
 vi.mock("./redis", () => ({
   redis: {
     get: () => redisGet(),
@@ -34,6 +37,8 @@ beforeEach(() => {
   vi.clearAllMocks();
   redisGet.mockResolvedValue(null);
   redisSet.mockResolvedValue("OK");
+  // An empty database is the default: the claim is only offered on one.
+  count.mockResolvedValue(0);
 });
 
 describe("getOnboardingState", () => {
@@ -41,6 +46,17 @@ describe("getOnboardingState", () => {
     findMany.mockResolvedValue([]);
 
     expect(await getOnboardingState()).toEqual({ step: "claim" });
+  });
+
+  it("does not reopen the claim on a database that has users", async () => {
+    // Roles are revocable, so "take the admin role away from everyone" became a
+    // second route to the takeover the banned-admin branch already closes.
+    // Nobody can sign up before onboarding finishes, so a populated database
+    // provably means setup already happened.
+    findMany.mockResolvedValue([]);
+    count.mockResolvedValue(3);
+
+    expect(await getOnboardingState()).toEqual({ step: "done" });
   });
 
   it("resumes at the key step for a half-claimed administrator", async () => {

@@ -47,7 +47,7 @@
     "clsx": "^2.1.1",
     "cmdk": "^1.1.1",
     "date-fns": "^4.4.0",
-    "ioredis": "^5.11.1",
+    "ioredis": "^6.0.0",
     "katex": "^0.18.4",
     "localforage": "^1.10.0",
     "lucide-react": "^1.31.0",

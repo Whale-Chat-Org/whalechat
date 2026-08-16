@@ -10,15 +10,18 @@
 # suite is the whole setup.
 name: CodeQL
 
+# Deliberately NOT on `push` to main. Work reaches main through a pull request
+# (see docs/git.md), which is scanned here before merge — scanning the identical
+# tree again on the merge commit finds nothing new and puts a second entry in
+# the Actions tab for every push. The weekly run is the backstop: it covers
+# anything pushed straight to main, and picks up newly published queries against
+# code that has not changed.
 on:
-  push:
-    branches: [main]
   pull_request:
     branches: [main]
   schedule:
-    # Weekly, so newly published queries reach existing code without waiting for
-    # someone to push.
     - cron: "27 4 * * 1"
+  workflow_dispatch:
 
 permissions:
   contents: read

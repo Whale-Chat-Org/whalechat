@@ -81,6 +81,10 @@ is worth catching before merge. The push steps never run on a PR.
   repository is public; on a private repo it would need GitHub Code Security.
   Keeping it out of `ci-cd.yml` means an entitlement it may not have can never
   block a deploy.
+- **CodeQL does not run on pushes to `main`.** Work arrives through a pull
+  request, which it already scanned; re-scanning the identical tree on the merge
+  finds nothing and doubles the entries in the Actions tab. The weekly schedule
+  backstops anything pushed straight to main.
 
 ## Setup
 

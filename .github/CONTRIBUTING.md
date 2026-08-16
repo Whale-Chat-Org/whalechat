@@ -10,24 +10,36 @@ If you encounter any bugs, glitches, or have suggestions for improvements, pleas
 
 ### Submitting Pull Requests
 
-1. Fork the repository: Click the "Fork" button at the top right of the repository page.
-2. Clone your forked repository:
+This repository is **trunk-based**: `main` is always releasable, and work happens
+on short-lived branches that merge back within about a day. The full rules —
+branch prefixes, rebasing, commit format, and the no-AI-attribution rule — are in
+[docs/git.md](../docs/git.md). The short version:
+
+1. Branch from an up-to-date `main`. Prefixes: `feat/`, `fix/`, `chore/`, `ci/`,
+   `docs/`, `refactor/`.
    ```bash
-   git clone https://github.com/<your-username>/whalechat.git
+   git switch main && git pull && git switch -c feat/short-description
    ```
-3. Create a new branch for your feature or fix:
+2. Commit using [Conventional Commits](https://www.conventionalcommits.org) —
+   `type(scope): imperative subject`. The body explains *why*, not what.
    ```bash
-   git checkout -b feature/your-feature-name
+   git commit -m "feat(auth): allow admins to revoke a pending invite"
    ```
-4. Make your changes and commit them:
+3. Keep the branch current by **rebasing** onto `main`. Never merge `main` into
+   your branch — it makes the squash-merged diff dishonest.
    ```bash
-   git commit -m "Add your commit message here"
+   git fetch origin && git rebase origin/main
    ```
-5. Push your changes to your forked repository:
+4. Push and open a pull request against `main`.
    ```bash
-   git push origin feature/your-feature-name
+   git push -u origin feat/short-description
    ```
-6. Open a pull request: Go to the original repository and click "New Pull Request."
+5. Once CI is green and the PR is approved, **squash merge** and delete the
+   branch. If the change cannot land within about a day, land it incomplete but
+   inert — behind a flag or unreferenced — rather than letting the branch age.
+
+External contributors without push access should fork first and open the pull
+request from their fork; everything else above is unchanged.
 
 ### Code Style
 
